@@ -33,7 +33,8 @@ export function createChromaKeyMaterial({
     vertexShader: /* glsl */`
       varying vec2 vUv;
       void main(){
-        vUv = uv;
+        // Flip Y coordinate to fix upside-down video
+        vUv = vec2(uv.x, 1.0 - uv.y);
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
       }
     `,
@@ -70,8 +71,9 @@ export function createChromaKeyMaterial({
         float satDist = abs(texHsv.y - keyHsv.y);
         float valDist = abs(texHsv.z - keyHsv.z);
         
-        // Weighted distance (hue most important for chroma key)
-        return sqrt(hueDist * hueDist * 4.0 + satDist * satDist + valDist * valDist * 0.5);
+        // More aggressive weighting for better chroma key with specific colors
+        // Hue is most important, but saturation also matters for green screen
+        return sqrt(hueDist * hueDist * 6.0 + satDist * satDist * 2.0 + valDist * valDist);
       }
 
       void main(){
@@ -86,14 +88,22 @@ export function createChromaKeyMaterial({
         // Calculate chroma key distance
         float dist = chromaDistance(texColor.rgb, keyColor);
         
+        // Additional RGB distance check for better precision with specific colors
+        vec3 colorDiff = abs(texColor.rgb - keyColor);
+        float rgbDist = length(colorDiff);
+        
+        // Combine HSV and RGB distances for better accuracy
+        float combinedDist = mix(dist, rgbDist * 2.0, 0.3);
+        
         // Create smooth alpha mask
-        float alpha = smoothstep(similarity - smoothness, similarity + smoothness, dist);
+        float alpha = smoothstep(similarity - smoothness, similarity + smoothness, combinedDist);
         
         // Spill removal - reduce key color bleeding
         vec3 finalColor = texColor.rgb;
         if (alpha > 0.1 && spill > 0.0) {
-          float spillAmount = clamp((1.0 - dist) * spill, 0.0, 1.0);
-          finalColor = mix(texColor.rgb, vec3(0.0), spillAmount);
+          float spillAmount = clamp((1.0 - combinedDist) * spill, 0.0, 1.0);
+          // Remove green tint more effectively
+          finalColor.g = mix(finalColor.g, (finalColor.r + finalColor.b) * 0.5, spillAmount);
         }
         
         gl_FragColor = vec4(finalColor, alpha);

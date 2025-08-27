@@ -347,15 +347,15 @@ function initThree() {
   console.log('Creating 8th Wall chroma key material...');
   chromaMaterial = createChromaKeyMaterial({ 
     texture: videoTex,
-    keyColor: new THREE.Color('#00ff00'), // Pure green
-    similarity: 0.4,   // 8th Wall optimized similarity
-    smoothness: 0.1,   // 8th Wall optimized smoothness  
-    spill: 0.1,        // Spill removal for cleaner edges
+    keyColor: new THREE.Color('#43A34E'), // Specific green color from video
+    similarity: 0.3,   // More sensitive for this specific green
+    smoothness: 0.08,  // Smoother edges
+    spill: 0.15,       // More aggressive spill removal
     debugMode: false   // Start with chroma key active
   });
   
   console.log('8th Wall chroma material created with texture:', videoTex);
-  console.log('Using 8th Wall optimized parameters');
+  console.log('Using specific green color #43A34E with optimized parameters');
   
   const geo = new THREE.PlaneGeometry(2, 2);
   plane = new THREE.Mesh(geo, chromaMaterial);
