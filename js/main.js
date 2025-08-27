@@ -75,7 +75,42 @@ async function initWebcam() {
 }
 
 async function loadOverlayVideo(customURL) {
-  console.log('Loading overlay video...', customURL || 'vid.mp4');
+  console.log('Loading overlay video...', customURL || './vid.mp4');
+  
+  // Check if we're on mobile
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  
+  if (isMobile) {
+    console.log('Mobile detected, creating fallback texture instead of loading video');
+    // Create a simple colored texture for mobile fallback
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+    
+    // Create a green screen color for testing
+    ctx.fillStyle = '#00ff00';
+    ctx.fillRect(0, 0, 512, 512);
+    
+    // Add some pattern to make it visible
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '48px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('OVERLAY', 256, 256);
+    
+    videoTex = new THREE.CanvasTexture(canvas);
+    videoTex.colorSpace = THREE.SRGBColorSpace;
+    videoTex.generateMipmaps = false;
+    videoTex.minFilter = THREE.LinearFilter;
+    videoTex.magFilter = THREE.LinearFilter;
+    videoTex.wrapS = THREE.ClampToEdgeWrapping;
+    videoTex.wrapT = THREE.ClampToEdgeWrapping;
+    
+    console.log('Mobile fallback texture created successfully');
+    return;
+  }
+  
+  // Desktop: load actual video
   overlayVideo = document.createElement('video');
   overlayVideo.setAttribute('playsinline', '');
   overlayVideo.muted = true; // required for autoplay on mobile
