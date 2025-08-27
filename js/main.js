@@ -75,23 +75,42 @@ async function initWebcam() {
 }
 
 async function loadOverlayVideo(customURL) {
+  console.log('Loading overlay video...', customURL || 'vid.mp4');
   overlayVideo = document.createElement('video');
   overlayVideo.setAttribute('playsinline', '');
   overlayVideo.muted = true; // required for autoplay on mobile
   overlayVideo.loop = true;
   overlayVideo.crossOrigin = 'anonymous';
+  
   // Set src after crossOrigin for safety
-  overlayVideo.src = customURL || 'vid.mp4'; // video local
+  const videoSrc = customURL || './vid.mp4'; // Ensure relative path with ./
+  overlayVideo.src = videoSrc;
+  console.log('Video src set to:', videoSrc);
 
   await new Promise((resolve, reject) => {
-    overlayVideo.addEventListener('loadeddata', resolve, { once: true });
-    overlayVideo.addEventListener('error', () => reject(new Error('Error cargando video overlay')), { once: true });
+    overlayVideo.addEventListener('loadeddata', () => {
+      console.log('Overlay video loaded successfully');
+      resolve();
+    }, { once: true });
+    overlayVideo.addEventListener('error', (e) => {
+      console.error('Error loading overlay video:', e, overlayVideo.error);
+      reject(new Error(`Error cargando video overlay: ${overlayVideo.error?.message || 'Unknown error'}`));
+    }, { once: true });
+    
+    // Add timeout for slow connections
+    setTimeout(() => {
+      reject(new Error('Video loading timeout'));
+    }, 10000);
   });
+  
   try {
     await overlayVideo.play();
+    console.log('Overlay video playing');
   } catch (e) {
-    console.warn('Autoplay bloqueado, intentando play tras interacción', e);
+    console.warn('Autoplay bloqueado, el video se reproducirá tras interacción del usuario', e);
+    // On mobile, video might not autoplay, but that's OK for overlay
   }
+  
   videoTex = new THREE.VideoTexture(overlayVideo);
   videoTex.colorSpace = THREE.SRGBColorSpace;
   videoTex.generateMipmaps = false;
@@ -167,12 +186,16 @@ function wireUI(){
 
 async function autoStart(){
   // Start immediately without waiting for user interaction
+  console.log('Starting auto-initialization...');
   try {
     // Show loading state
     recorderContainer.classList.add('loading');
     
+    console.log('Initializing webcam and overlay video...');
     await Promise.all([initWebcam(), loadOverlayVideo()]);
+    console.log('Webcam and video loaded, initializing Three.js...');
     initThree();
+    console.log('Three.js initialized, wiring UI...');
     wireUI();
     
     // Remove loading state and hide overlay
@@ -182,8 +205,20 @@ async function autoStart(){
     }
     console.log('App initialized successfully');
   } catch (e){
-    console.warn('Auto start failed:', e);
+    console.error('Auto start failed:', e);
     recorderContainer.classList.remove('loading');
+    
+    // Show more specific error messages for mobile debugging
+    let errorMessage = 'Camera or video loading failed';
+    if (e.message.includes('HTTPS')) {
+      errorMessage = 'HTTPS required for camera';
+    } else if (e.message.includes('getUserMedia')) {
+      errorMessage = 'Camera not supported';
+    } else if (e.message.includes('video')) {
+      errorMessage = 'Video overlay failed to load';
+    } else if (e.message.includes('NotAllowed')) {
+      errorMessage = 'Camera permission denied';
+    }
     
     // Show tap overlay as fallback
     if (loadingOverlay && tapOverlay) {
@@ -193,7 +228,10 @@ async function autoStart(){
           <div style="font-size: 1.5rem; margin-bottom: 10px;">⚠️</div>
           <div>Tap to retry initialization</div>
           <div style="font-size: 0.8rem; margin-top: 10px; opacity: 0.7;">
-            Camera access required
+            ${errorMessage}
+          </div>
+          <div style="font-size: 0.7rem; margin-top: 15px; opacity: 0.5;">
+            ${e.message}
           </div>
         </div>
       `;
@@ -204,19 +242,34 @@ async function autoStart(){
 // Add event listener only if tapOverlay exists
 if (tapOverlay) {
   tapOverlay.addEventListener('click', async ()=> {
+    console.log('Manual start triggered...');
     if (tapOverlay) {
       tapOverlay.innerHTML = '<div>Starting...</div>';
     }
     recorderContainer.classList.add('loading');
     
     try {
+      console.log('Manual initialization: loading webcam and video...');
       await Promise.all([initWebcam(), loadOverlayVideo()]);
+      
+      // Try to play overlay video on user interaction (iOS requirement)
+      if (overlayVideo && overlayVideo.paused) {
+        try {
+          await overlayVideo.play();
+          console.log('Overlay video started playing after user interaction');
+        } catch (playError) {
+          console.warn('Could not start overlay video:', playError);
+        }
+      }
+      
+      console.log('Manual initialization: setting up Three.js...');
       initThree();
       wireUI();
       if (loadingOverlay) {
         loadingOverlay.style.display = 'none';
       }
       recorderContainer.classList.remove('loading');
+      console.log('Manual initialization successful');
     } catch (e){
       console.error('Manual start failed:', e);
       recorderContainer.classList.remove('loading');
