@@ -178,15 +178,55 @@ async function loadOverlayVideo(customURL) {
         // Wait a bit more for video to be fully ready
         await new Promise(resolve => setTimeout(resolve, 200));
         
-        videoTex = new THREE.VideoTexture(overlayVideo);
-        videoTex.colorSpace = THREE.SRGBColorSpace;
-        videoTex.generateMipmaps = false;
-        videoTex.minFilter = THREE.LinearFilter;
-        videoTex.magFilter = THREE.LinearFilter;
-        videoTex.wrapS = THREE.ClampToEdgeWrapping;
-        videoTex.wrapT = THREE.ClampToEdgeWrapping;
+        // iOS Safari has issues with VideoTexture, try alternative approach
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
         
-        console.log('Mobile: Video texture created successfully');
+        if (isIOS) {
+          console.log('iOS detected, using canvas-based approach for video texture');
+          
+          // Create a canvas to draw video frames
+          const canvas = document.createElement('canvas');
+          canvas.width = overlayVideo.videoWidth || 640;
+          canvas.height = overlayVideo.videoHeight || 480;
+          const ctx = canvas.getContext('2d');
+          
+          // Function to update canvas with video frame
+          const updateCanvas = () => {
+            if (overlayVideo && !overlayVideo.paused && !overlayVideo.ended) {
+              ctx.drawImage(overlayVideo, 0, 0, canvas.width, canvas.height);
+              if (videoTex) {
+                videoTex.needsUpdate = true;
+              }
+            }
+            if (!overlayVideo.paused) {
+              requestAnimationFrame(updateCanvas);
+            }
+          };
+          
+          videoTex = new THREE.CanvasTexture(canvas);
+          videoTex.colorSpace = THREE.SRGBColorSpace;
+          videoTex.generateMipmaps = false;
+          videoTex.minFilter = THREE.LinearFilter;
+          videoTex.magFilter = THREE.LinearFilter;
+          videoTex.wrapS = THREE.ClampToEdgeWrapping;
+          videoTex.wrapT = THREE.ClampToEdgeWrapping;
+          
+          // Start the update loop
+          updateCanvas();
+          
+          console.log('iOS: Canvas-based video texture created successfully');
+        } else {
+          // Non-iOS: use direct VideoTexture
+          videoTex = new THREE.VideoTexture(overlayVideo);
+          videoTex.colorSpace = THREE.SRGBColorSpace;
+          videoTex.generateMipmaps = false;
+          videoTex.minFilter = THREE.LinearFilter;
+          videoTex.magFilter = THREE.LinearFilter;
+          videoTex.wrapS = THREE.ClampToEdgeWrapping;
+          videoTex.wrapT = THREE.ClampToEdgeWrapping;
+          
+          console.log('Mobile: Direct video texture created successfully');
+        }
         
         // Try to play (might fail but that's OK)
         try {
@@ -313,6 +353,22 @@ function wireUI(){
   offsetXInput.addEventListener('input', ()=> {
     if (plane) plane.position.x = parseFloat(offsetXInput.value) * 2.0; // scale to plane width 2
   });
+
+  // Add click handler to try starting video on any user interaction (iOS requirement)
+  const startVideoOnInteraction = async () => {
+    if (overlayVideo && overlayVideo.paused) {
+      try {
+        await overlayVideo.play();
+        console.log('Video started playing after user interaction');
+      } catch (e) {
+        console.warn('Could not start video on interaction:', e);
+      }
+    }
+  };
+  
+  // Add interaction listeners to key elements
+  document.addEventListener('touchstart', startVideoOnInteraction, { once: true });
+  document.addEventListener('click', startVideoOnInteraction, { once: true });
 
   setupCapture();
 }
