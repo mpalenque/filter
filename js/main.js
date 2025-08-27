@@ -1,7 +1,7 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160/build/three.module.js';
 import { createChromaKeyMaterial } from './ChromaKeyMaterial.js';
 
-console.log('🚀 NUEVA VERSION v2.1 - Video iOS Fix Loaded');
+console.log('🚀 NUEVA VERSION v2.2 - Basic Material Test (No Chroma Key)');
 
 const webcamEl = document.getElementById('webcam');
 const canvas = document.getElementById('three-canvas');
@@ -343,6 +343,15 @@ function initThree() {
   camera = new THREE.OrthographicCamera(-1,1,1,-1,0,10);
   camera.position.z = 1;
 
+  // FOR TESTING: Use basic material instead of chroma key
+  console.log('Creating BASIC material for testing - no chroma key');
+  chromaMaterial = new THREE.MeshBasicMaterial({ 
+    map: videoTex,
+    side: THREE.DoubleSide,
+    transparent: false
+  });
+  
+  /*
   chromaMaterial = createChromaKeyMaterial({ 
     texture: videoTex, 
     debugMode: true // Temporarily disable chroma key to see if video shows
@@ -350,6 +359,7 @@ function initThree() {
   
   console.log('Chroma material created with texture:', videoTex);
   console.log('Debug mode enabled - chroma key disabled');
+  */
   
   const geo = new THREE.PlaneGeometry(2, 2);
   plane = new THREE.Mesh(geo, chromaMaterial);
