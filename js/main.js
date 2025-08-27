@@ -343,23 +343,19 @@ function initThree() {
   camera = new THREE.OrthographicCamera(-1,1,1,-1,0,10);
   camera.position.z = 1;
 
-  // FOR TESTING: Use basic material instead of chroma key
-  console.log('Creating BASIC material for testing - no chroma key');
-  chromaMaterial = new THREE.MeshBasicMaterial({ 
-    map: videoTex,
-    side: THREE.DoubleSide,
-    transparent: false
-  });
-  
-  /*
+  // Use 8th Wall chroma key method
+  console.log('Creating 8th Wall chroma key material...');
   chromaMaterial = createChromaKeyMaterial({ 
-    texture: videoTex, 
-    debugMode: true // Temporarily disable chroma key to see if video shows
+    texture: videoTex,
+    keyColor: new THREE.Color('#00ff00'), // Pure green
+    similarity: 0.4,   // 8th Wall optimized similarity
+    smoothness: 0.1,   // 8th Wall optimized smoothness  
+    spill: 0.1,        // Spill removal for cleaner edges
+    debugMode: false   // Start with chroma key active
   });
   
-  console.log('Chroma material created with texture:', videoTex);
-  console.log('Debug mode enabled - chroma key disabled');
-  */
+  console.log('8th Wall chroma material created with texture:', videoTex);
+  console.log('Using 8th Wall optimized parameters');
   
   const geo = new THREE.PlaneGeometry(2, 2);
   plane = new THREE.Mesh(geo, chromaMaterial);
@@ -371,14 +367,6 @@ function initThree() {
   console.log('Plane created and positioned at x:', plane.position.x);
 
   animate();
-}
-
-function animate(){
-  requestAnimationFrame(animate);
-  if (videoTex) {
-    videoTex.needsUpdate = true;
-  }
-  renderer.render(scene, camera);
 }
 
 // Add one-time logging to see if animation is running
@@ -405,29 +393,25 @@ function resize(){
 window.addEventListener('resize', () => resize());
 
 function wireUI(){
-  keyColorInput.addEventListener('input', ()=> {
-    chromaMaterial?.userData.update({ keyColor: keyColorInput.value });
-  });
-  similarityInput.addEventListener('input', ()=> {
-    chromaMaterial?.userData.update({ similarity: parseFloat(similarityInput.value) });
-  });
-  smoothnessInput.addEventListener('input', ()=> {
-    chromaMaterial?.userData.update({ smoothness: parseFloat(smoothnessInput.value) });
-  });
-  videoFileInput.addEventListener('change', async (e)=> {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    try {
-      const url = URL.createObjectURL(file);
-      await loadOverlayVideo(url);
-      chromaMaterial.map = videoTex;
-      chromaMaterial.needsUpdate = true;
-    } catch (err) {
-      console.error('Error cargando archivo de video', err);
+  // Add debug toggle for chroma key (tap screen 5 times quickly)
+  let tapCount = 0;
+  let tapTimer = null;
+  
+  document.addEventListener('touchstart', () => {
+    tapCount++;
+    clearTimeout(tapTimer);
+    
+    if (tapCount >= 5) {
+      // Toggle debug mode after 5 quick taps
+      if (chromaMaterial && chromaMaterial.userData.toggleDebug) {
+        chromaMaterial.userData.toggleDebug();
+      }
+      tapCount = 0;
+    } else {
+      tapTimer = setTimeout(() => {
+        tapCount = 0;
+      }, 1000);
     }
-  });
-  offsetXInput.addEventListener('input', ()=> {
-    if (plane) plane.position.x = parseFloat(offsetXInput.value) * 2.0; // scale to plane width 2
   });
 
   // Add click handler to try starting video on any user interaction (iOS requirement)

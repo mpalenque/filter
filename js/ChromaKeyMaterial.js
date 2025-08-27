@@ -1,22 +1,34 @@
-// Minimal adaptation inspired by threejs_chromakey_video_material
-// (No direct copy; simple GLSL shader implementing chroma key.)
+/**
+ * 8th Wall Chroma Key Material
+ * Based on aframe-chromakey-material approach for maximum compatibility
+ * Optimized for mobile devices and iOS
+ */
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160/build/three.module.js';
 
-export function createChromaKeyMaterial({ texture, keyColor = new THREE.Color('#00ff00'), similarity = 0.15, smoothness = 0.02, debugMode = false }) {
-  console.log('Creating chroma key material - debugMode:', debugMode);
+export function createChromaKeyMaterial({ 
+  texture, 
+  keyColor = new THREE.Color('#00ff00'), 
+  similarity = 0.4, 
+  smoothness = 0.1,
+  spill = 0.1,
+  debugMode = false 
+}) {
+  console.log('Creating 8th Wall chroma key material - debugMode:', debugMode);
   
   const uniforms = {
     map: { value: texture },
     keyColor: { value: keyColor },
     similarity: { value: similarity },
     smoothness: { value: smoothness },
+    spill: { value: spill },
     debugMode: { value: debugMode ? 1.0 : 0.0 }
   };
   
   const material = new THREE.ShaderMaterial({
-    transparent: !debugMode, // In debug mode, don't use transparency
-    opacity: 1.0,
+    transparent: true,
+    alphaTest: 0.0,
     side: THREE.DoubleSide,
+    blending: THREE.NormalBlending,
     uniforms,
     vertexShader: /* glsl */`
       varying vec2 vUv;
@@ -25,84 +37,91 @@ export function createChromaKeyMaterial({ texture, keyColor = new THREE.Color('#
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
       }
     `,
-  fragmentShader: /* glsl */`
-      precision highp float;
+    fragmentShader: /* glsl */`
+      precision mediump float;
       varying vec2 vUv;
       uniform sampler2D map;
       uniform vec3 keyColor;
-      uniform float similarity; // threshold
-      uniform float smoothness; // softness edge
-      uniform float debugMode; // 1.0 = show video without chroma key
+      uniform float similarity;
+      uniform float smoothness;
+      uniform float spill;
+      uniform float debugMode;
+
+      // Convert RGB to HSV (8th Wall method)
+      vec3 rgb2hsv(vec3 c) {
+        vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+        vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
+        vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
+        float d = q.x - min(q.w, q.y);
+        float e = 1.0e-10;
+        return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
+      }
+
+      // Calculate chroma key distance in HSV space
+      float chromaDistance(vec3 texColor, vec3 keyColor) {
+        vec3 texHsv = rgb2hsv(texColor);
+        vec3 keyHsv = rgb2hsv(keyColor);
+        
+        // Hue distance with wraparound
+        float hueDist = abs(texHsv.x - keyHsv.x);
+        if (hueDist > 0.5) hueDist = 1.0 - hueDist;
+        
+        // Saturation and value distances
+        float satDist = abs(texHsv.y - keyHsv.y);
+        float valDist = abs(texHsv.z - keyHsv.z);
+        
+        // Weighted distance (hue most important for chroma key)
+        return sqrt(hueDist * hueDist * 4.0 + satDist * satDist + valDist * valDist * 0.5);
+      }
 
       void main(){
-        vec4 color = texture2D(map, vUv);
+        vec4 texColor = texture2D(map, vUv);
         
-        // Debug mode: show video without any chroma keying - FORCED VISIBLE
+        // Debug mode: show original video without processing
         if (debugMode > 0.5) {
-          // Force full opacity to ensure visibility
-          gl_FragColor = vec4(color.rgb, 1.0);
+          gl_FragColor = vec4(texColor.rgb, 1.0);
           return;
         }
         
-        // Standard chroma key using HSV color space (more accurate than YCbCr)
-        vec3 c = color.rgb;
-        vec3 key = keyColor.rgb;
+        // Calculate chroma key distance
+        float dist = chromaDistance(texColor.rgb, keyColor);
         
-        // Convert to HSV for better chroma separation
-        float maxC = max(max(c.r, c.g), c.b);
-        float minC = min(min(c.r, c.g), c.b);
-        float delta = maxC - minC;
+        // Create smooth alpha mask
+        float alpha = smoothstep(similarity - smoothness, similarity + smoothness, dist);
         
-        float hue = 0.0;
-        if (delta > 0.0) {
-          if (maxC == c.r) {
-            hue = mod((c.g - c.b) / delta, 6.0);
-          } else if (maxC == c.g) {
-            hue = (c.b - c.r) / delta + 2.0;
-          } else {
-            hue = (c.r - c.g) / delta + 4.0;
-          }
-          hue /= 6.0;
+        // Spill removal - reduce key color bleeding
+        vec3 finalColor = texColor.rgb;
+        if (alpha > 0.1 && spill > 0.0) {
+          float spillAmount = clamp((1.0 - dist) * spill, 0.0, 1.0);
+          finalColor = mix(texColor.rgb, vec3(0.0), spillAmount);
         }
         
-        float sat = maxC > 0.0 ? delta / maxC : 0.0;
-        float val = maxC;
-        
-        // Key color HSV
-        float maxKey = max(max(key.r, key.g), key.b);
-        float minKey = min(min(key.r, key.g), key.b);
-        float deltaKey = maxKey - minKey;
-        
-        float keyHue = 0.0;
-        if (deltaKey > 0.0) {
-          if (maxKey == key.r) {
-            keyHue = mod((key.g - key.b) / deltaKey, 6.0);
-          } else if (maxKey == key.g) {
-            keyHue = (key.b - key.r) / deltaKey + 2.0;
-          } else {
-            keyHue = (key.r - key.g) / deltaKey + 4.0;
-          }
-          keyHue /= 6.0;
-        }
-        
-        float keySat = maxKey > 0.0 ? deltaKey / maxKey : 0.0;
-        
-        // Calculate distance in HSV space
-        float hueDist = min(abs(hue - keyHue), 1.0 - abs(hue - keyHue));
-        float satDist = abs(sat - keySat);
-        float chromaDist = sqrt(hueDist * hueDist + satDist * satDist);
-        
-        // Create mask
-        float mask = smoothstep(similarity - smoothness, similarity + smoothness, chromaDist);
-        
-        gl_FragColor = vec4(color.rgb, color.a * mask);
+        gl_FragColor = vec4(finalColor, alpha);
       }
     `
   });
+
+  // Add update method for runtime parameter changes
   material.userData.update = (params) => {
-    if (params.keyColor) material.uniforms.keyColor.value.set(params.keyColor);
+    if (params.keyColor) {
+      if (typeof params.keyColor === 'string') {
+        material.uniforms.keyColor.value.set(params.keyColor);
+      } else {
+        material.uniforms.keyColor.value.copy(params.keyColor);
+      }
+    }
     if (params.similarity !== undefined) material.uniforms.similarity.value = params.similarity;
     if (params.smoothness !== undefined) material.uniforms.smoothness.value = params.smoothness;
+    if (params.spill !== undefined) material.uniforms.spill.value = params.spill;
+    if (params.debugMode !== undefined) material.uniforms.debugMode.value = params.debugMode ? 1.0 : 0.0;
   };
+
+  // Add debug toggle method
+  material.userData.toggleDebug = () => {
+    const isDebug = material.uniforms.debugMode.value > 0.5;
+    material.uniforms.debugMode.value = isDebug ? 0.0 : 1.0;
+    console.log('8th Wall Chroma Debug Mode:', !isDebug ? 'ON' : 'OFF');
+  };
+
   return material;
 }
