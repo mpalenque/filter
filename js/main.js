@@ -358,8 +358,8 @@ function initThree() {
   console.log('Using more aggressive parameters for better green removal');
   
   // Calculate proper aspect ratio for video plane
-  let planeWidth = 2;
-  let planeHeight = 2;
+  let planeWidth = 4;  // Double the size (was 2)
+  let planeHeight = 4; // Double the size (was 2)
   
   // Check if we have video dimensions and adjust for mobile devices
   if (overlayVideo && overlayVideo.videoWidth && overlayVideo.videoHeight) {
@@ -368,7 +368,7 @@ function initThree() {
     
     console.log('Video aspect:', videoAspect, 'Screen aspect:', screenAspect);
     
-    // Adjust plane dimensions to maintain video aspect ratio
+    // Adjust plane dimensions to maintain video aspect ratio (doubled size)
     if (videoAspect > screenAspect) {
       // Video is wider than screen
       planeHeight = planeWidth / videoAspect;
@@ -377,7 +377,7 @@ function initThree() {
       planeWidth = planeHeight * videoAspect;
     }
     
-    console.log('Adjusted plane dimensions:', planeWidth, 'x', planeHeight);
+    console.log('Adjusted plane dimensions (2x size):', planeWidth, 'x', planeHeight);
   }
   
   const geo = new THREE.PlaneGeometry(planeWidth, planeHeight);
@@ -418,10 +418,10 @@ function resize(){
     const videoAspect = overlayVideo.videoWidth / overlayVideo.videoHeight;
     const screenAspect = w / h;
     
-    let planeWidth = 2;
-    let planeHeight = 2;
+    let planeWidth = 4;  // Double size (was 2)
+    let planeHeight = 4; // Double size (was 2)
     
-    // Maintain video aspect ratio
+    // Maintain video aspect ratio (doubled size)
     if (videoAspect > screenAspect) {
       planeHeight = planeWidth / videoAspect;
     } else {
@@ -432,7 +432,7 @@ function resize(){
     plane.geometry.dispose();
     plane.geometry = new THREE.PlaneGeometry(planeWidth, planeHeight);
     
-    console.log('Plane resized to:', planeWidth, 'x', planeHeight, 'for aspect:', videoAspect);
+    console.log('Plane resized to (2x size):', planeWidth, 'x', planeHeight, 'for aspect:', videoAspect);
   }
 }
 window.addEventListener('resize', () => resize());

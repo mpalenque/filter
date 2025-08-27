@@ -33,8 +33,9 @@ export function createChromaKeyMaterial({
     vertexShader: /* glsl */`
       varying vec2 vUv;
       void main(){
-        // Normal UV coordinates (no Y flip - video was upside down before)
-        vUv = uv;
+        // Check if we need to flip Y for iPhone (detect via user agent)
+        // On iPhone, video texture is often inverted
+        vUv = vec2(uv.x, 1.0 - uv.y);
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
       }
     `,
