@@ -1,7 +1,7 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160/build/three.module.js';
 import { createChromaKeyMaterial } from './ChromaKeyMaterial.js';
 
-console.log('🚀 NUEVA VERSION v2.1 - Video iOS Fix Loaded');
+console.log('� VERSION 2.2 - DIRECT iOS VIDEO FIX 🔥');
 
 const webcamEl = document.getElementById('webcam');
 const canvas = document.getElementById('three-canvas');
@@ -178,63 +178,49 @@ async function loadOverlayVideo(customURL) {
     if (videoReady && overlayVideo.readyState >= 1) { // HAVE_METADATA or higher
       try {
         // Wait a bit more for video to be fully ready
-        await new Promise(resolve => setTimeout(resolve, 200));
+        await new Promise(resolve => setTimeout(resolve, 500));
         
-        // iOS Safari has issues with VideoTexture, try alternative approach
+        console.log('Creating video texture for mobile...');
+        console.log('Video details:', {
+          readyState: overlayVideo.readyState,
+          videoWidth: overlayVideo.videoWidth,
+          videoHeight: overlayVideo.videoHeight,
+          paused: overlayVideo.paused,
+          ended: overlayVideo.ended
+        });
+        
+        // For iOS, try direct VideoTexture first, fallback to canvas if needed
         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
         
-        if (isIOS) {
-          console.log('iOS detected, using canvas-based approach for video texture');
+        try {
+          // Try direct VideoTexture approach for iOS
+          videoTex = new THREE.VideoTexture(overlayVideo);
+          videoTex.colorSpace = THREE.SRGBColorSpace;
+          videoTex.generateMipmaps = false;
+          videoTex.minFilter = THREE.LinearFilter;
+          videoTex.magFilter = THREE.LinearFilter;
+          videoTex.wrapS = THREE.ClampToEdgeWrapping;
+          videoTex.wrapT = THREE.ClampToEdgeWrapping;
+          videoTex.flipY = true; // Standard for VideoTexture
           
-          // Ensure video has dimensions
+          console.log('Direct VideoTexture created successfully');
+          
+        } catch (directError) {
+          console.warn('Direct VideoTexture failed, trying canvas approach:', directError);
+          
+          // Fallback to canvas approach
           const videoWidth = overlayVideo.videoWidth || overlayVideo.width || 640;
           const videoHeight = overlayVideo.videoHeight || overlayVideo.height || 480;
           
-          console.log('Video dimensions:', videoWidth, 'x', videoHeight);
+          console.log('Canvas fallback - Video dimensions:', videoWidth, 'x', videoHeight);
           
-          // Create a canvas to draw video frames
           const canvas = document.createElement('canvas');
           canvas.width = videoWidth;
           canvas.height = videoHeight;
           const ctx = canvas.getContext('2d');
           
-          console.log('Canvas created:', canvas.width, 'x', canvas.height);
-          
-          // Function to update canvas with video frame
-          let updateRunning = false;
-          const updateCanvas = () => {
-            if (!overlayVideo || overlayVideo.paused || overlayVideo.ended || updateRunning) {
-              return;
-            }
-            
-            updateRunning = true;
-            
-            try {
-              // Clear canvas first
-              ctx.clearRect(0, 0, canvas.width, canvas.height);
-              
-              // Draw video frame
-              ctx.drawImage(overlayVideo, 0, 0, canvas.width, canvas.height);
-              
-              // Update texture
-              if (videoTex) {
-                videoTex.needsUpdate = true;
-              }
-              
-              // Schedule next frame
-              if (!overlayVideo.paused && !overlayVideo.ended) {
-                requestAnimationFrame(() => {
-                  updateRunning = false;
-                  updateCanvas();
-                });
-              } else {
-                updateRunning = false;
-              }
-            } catch (e) {
-              console.error('Error updating canvas:', e);
-              updateRunning = false;
-            }
-          };
+          // Draw initial frame
+          ctx.drawImage(overlayVideo, 0, 0, canvas.width, canvas.height);
           
           // Create texture from canvas
           videoTex = new THREE.CanvasTexture(canvas);
@@ -244,33 +230,29 @@ async function loadOverlayVideo(customURL) {
           videoTex.magFilter = THREE.LinearFilter;
           videoTex.wrapS = THREE.ClampToEdgeWrapping;
           videoTex.wrapT = THREE.ClampToEdgeWrapping;
-          videoTex.flipY = false; // Important for canvas textures
+          videoTex.flipY = false;
           
-          console.log('iOS: Canvas texture created, starting update loop');
+          // Simple update function
+          const updateCanvas = () => {
+            if (overlayVideo && !overlayVideo.paused && !overlayVideo.ended) {
+              ctx.drawImage(overlayVideo, 0, 0, canvas.width, canvas.height);
+              videoTex.needsUpdate = true;
+              requestAnimationFrame(updateCanvas);
+            }
+          };
           
-          // Start the update loop after a small delay
-          setTimeout(() => {
-            updateCanvas();
-          }, 100);
+          // Start updating
+          requestAnimationFrame(updateCanvas);
           
-          console.log('iOS: Canvas-based video texture created successfully');
-        } else {
-          // Non-iOS: use direct VideoTexture
-          videoTex = new THREE.VideoTexture(overlayVideo);
-          videoTex.colorSpace = THREE.SRGBColorSpace;
-          videoTex.generateMipmaps = false;
-          videoTex.minFilter = THREE.LinearFilter;
-          videoTex.magFilter = THREE.LinearFilter;
-          videoTex.wrapS = THREE.ClampToEdgeWrapping;
-          videoTex.wrapT = THREE.ClampToEdgeWrapping;
-          
-          console.log('Mobile: Direct video texture created successfully');
+          console.log('Canvas-based texture created successfully');
         }
         
         // Try to play (might fail but that's OK)
         try {
-          await overlayVideo.play();
-          console.log('Mobile: Video playing');
+          if (overlayVideo.paused) {
+            await overlayVideo.play();
+            console.log('Mobile: Video playing');
+          }
         } catch (playError) {
           console.warn('Mobile: Autoplay failed, will play on user interaction:', playError);
         }
