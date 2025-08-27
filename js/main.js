@@ -1,6 +1,8 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160/build/three.module.js';
 import { createChromaKeyMaterial } from './ChromaKeyMaterial.js';
 
+console.log('🚀 NUEVA VERSION v2.1 - Video iOS Fix Loaded');
+
 const webcamEl = document.getElementById('webcam');
 const canvas = document.getElementById('three-canvas');
 const tapOverlay = document.getElementById('tap-to-start');
@@ -184,25 +186,57 @@ async function loadOverlayVideo(customURL) {
         if (isIOS) {
           console.log('iOS detected, using canvas-based approach for video texture');
           
+          // Ensure video has dimensions
+          const videoWidth = overlayVideo.videoWidth || overlayVideo.width || 640;
+          const videoHeight = overlayVideo.videoHeight || overlayVideo.height || 480;
+          
+          console.log('Video dimensions:', videoWidth, 'x', videoHeight);
+          
           // Create a canvas to draw video frames
           const canvas = document.createElement('canvas');
-          canvas.width = overlayVideo.videoWidth || 640;
-          canvas.height = overlayVideo.videoHeight || 480;
+          canvas.width = videoWidth;
+          canvas.height = videoHeight;
           const ctx = canvas.getContext('2d');
           
+          console.log('Canvas created:', canvas.width, 'x', canvas.height);
+          
           // Function to update canvas with video frame
+          let updateRunning = false;
           const updateCanvas = () => {
-            if (overlayVideo && !overlayVideo.paused && !overlayVideo.ended) {
+            if (!overlayVideo || overlayVideo.paused || overlayVideo.ended || updateRunning) {
+              return;
+            }
+            
+            updateRunning = true;
+            
+            try {
+              // Clear canvas first
+              ctx.clearRect(0, 0, canvas.width, canvas.height);
+              
+              // Draw video frame
               ctx.drawImage(overlayVideo, 0, 0, canvas.width, canvas.height);
+              
+              // Update texture
               if (videoTex) {
                 videoTex.needsUpdate = true;
               }
-            }
-            if (!overlayVideo.paused) {
-              requestAnimationFrame(updateCanvas);
+              
+              // Schedule next frame
+              if (!overlayVideo.paused && !overlayVideo.ended) {
+                requestAnimationFrame(() => {
+                  updateRunning = false;
+                  updateCanvas();
+                });
+              } else {
+                updateRunning = false;
+              }
+            } catch (e) {
+              console.error('Error updating canvas:', e);
+              updateRunning = false;
             }
           };
           
+          // Create texture from canvas
           videoTex = new THREE.CanvasTexture(canvas);
           videoTex.colorSpace = THREE.SRGBColorSpace;
           videoTex.generateMipmaps = false;
@@ -210,9 +244,14 @@ async function loadOverlayVideo(customURL) {
           videoTex.magFilter = THREE.LinearFilter;
           videoTex.wrapS = THREE.ClampToEdgeWrapping;
           videoTex.wrapT = THREE.ClampToEdgeWrapping;
+          videoTex.flipY = false; // Important for canvas textures
           
-          // Start the update loop
-          updateCanvas();
+          console.log('iOS: Canvas texture created, starting update loop');
+          
+          // Start the update loop after a small delay
+          setTimeout(() => {
+            updateCanvas();
+          }, 100);
           
           console.log('iOS: Canvas-based video texture created successfully');
         } else {
@@ -308,19 +347,43 @@ function initThree() {
     texture: videoTex, 
     debugMode: true // Temporarily disable chroma key to see if video shows
   });
+  
+  console.log('Chroma material created with texture:', videoTex);
+  console.log('Debug mode enabled - chroma key disabled');
+  
   const geo = new THREE.PlaneGeometry(2, 2);
   plane = new THREE.Mesh(geo, chromaMaterial);
   scene.add(plane);
   // Move 30% left (plane spans -1..1 in orthographic; 30% of width = 0.6 * 0.5? Simpler: shift -0.3 * 2 = -0.6 of normalized width?).
   // Since plane width is 2 in clip space mapping, translating by -0.6 moves 30% of full width left.
   plane.position.x = -0.6;
+  
+  console.log('Plane created and positioned at x:', plane.position.x);
 
   animate();
 }
 
 function animate(){
   requestAnimationFrame(animate);
-  if (videoTex) videoTex.needsUpdate = true;
+  if (videoTex) {
+    videoTex.needsUpdate = true;
+  }
+  renderer.render(scene, camera);
+}
+
+// Add one-time logging to see if animation is running
+let animationLogCount = 0;
+function animate(){
+  requestAnimationFrame(animate);
+  
+  if (animationLogCount < 3) {
+    console.log('Animation frame:', animationLogCount, 'videoTex:', !!videoTex, 'scene children:', scene?.children?.length);
+    animationLogCount++;
+  }
+  
+  if (videoTex) {
+    videoTex.needsUpdate = true;
+  }
   renderer.render(scene, camera);
 }
 
