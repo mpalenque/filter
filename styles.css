@@ -1,0 +1,233 @@
+html,body { margin:0; padding:0; height:100%; background:#000; font-family: system-ui, Arial, sans-serif; }
+#app { position:relative; width:100vw; height:100vh; overflow:hidden; }
+#webcam { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:1; }
+#three-canvas { position:absolute; inset:0; width:100%; height:100%; z-index:2; }
+#ui { display: none; }
+#ui label { display:flex; align-items:center; gap:.35rem; }
+#ui input[type="range"] { width:80px; }
+#startBtn { background:#1e88e5; color:#fff; border:none; padding:.4rem .8rem; border-radius:4px; font-size:.8rem; }
+#startBtn:active { transform:scale(.97); }
+#captureBtn.recording { background:#d32f2f; animation:pulse 1s infinite; }
+@keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(211,47,47,.7);} 70%{box-shadow:0 0 0 12px rgba(211,47,47,0);} 100%{box-shadow:0 0 0 0 rgba(211,47,47,0);} }
+
+#tapOverlay { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:1.25rem; color:#fff; background:rgba(0,0,0,.6); z-index:6; user-select:none; }
+ 
+html,body { margin:0; padding:0; height:100%; background:#000; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; -webkit-user-select:none; user-select:none; }
+#app { position:relative; width:100vw; height:100vh; overflow:hidden; touch-action:none; }
+#webcam { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:1; }
+#three-canvas { position:absolute; inset:0; width:100%; height:100%; z-index:2; }
+#ui label { display:flex; flex-direction:column; align-items:flex-start; gap:.25rem; font-weight:500; letter-spacing:.5px; }
+#ui label input[type="range"] { width:70px; }
+#ui button { background:rgba(255,255,255,.15); color:#fff; border:none; padding:.35rem .6rem; border-radius:999px; font-size:.6rem; letter-spacing:.5px; }
+#ui button:active { transform:scale(.94); }
+
+/* Record Button Styles - Based on 8th Wall */
+.recorder-container {
+  position: fixed;
+  width: 25vmin;
+  height: 25vmin;
+  max-width: 10em;
+  max-height: 10em;
+  bottom: 3vmin;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  transition: 0.5s opacity;
+}
+
+#recorder-button {
+  display: block;
+  border: none;
+  outline: none;
+  margin: 0;
+  padding: 0;
+  box-shadow: none;
+  position: absolute;
+  background: white;
+  border-radius: 50%;
+  color: transparent;
+  top: 0;
+  left: 0;
+  transform-origin: 50% 50%;
+  transform: scale(0.6);
+  transition: 0.3s border-radius, 0.3s transform;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+}
+
+.progress-container {
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  transform: scale(0.9);
+  transition: 0.3s transform, 0.3s opacity;
+  opacity: 0;
+}
+
+.progress-track,
+.progress-bar, 
+.loading-circle {
+  fill: transparent;
+  stroke-width: 3;
+}
+
+.progress-track {
+  stroke: white;
+}
+
+.progress-bar {
+  opacity: 0;
+  transition: 0;
+  transform-origin: 50% 50%;
+  stroke: #ff1744;
+  transform: rotate(-90deg);
+  stroke-dasharray: 100.531 100.531;
+  stroke-dashoffset: 100.531;
+}
+
+.recording .progress-container,
+.loading .progress-container {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.recording .progress-track, 
+.loading .progress-track {
+  transition: 0.8s stroke;
+  stroke: rgba(255, 255, 255, 0.3);
+}
+
+.recording .progress-bar {
+  opacity: 1;
+  transition: stroke-dashoffset 0.1s linear;
+}
+
+.active #recorder-button {
+  transform: scale(0.5);
+}
+
+.recording #recorder-button {
+  background: #ff1744;
+  border-radius: 15%;
+  transform: scale(0.42);
+}
+
+.loading-circle {
+  stroke-dasharray: 25 25 25 25;
+  stroke-dashoffset: 0;
+  stroke: white;
+  opacity: 0;
+  transform-origin: 50% 50%;
+}
+
+@keyframes record-button-spin {
+  0% { transform: rotate(-90deg); }
+  100% { transform: rotate(270deg); }
+}
+
+.loading .loading-circle {
+  animation: record-button-spin 1.1s linear infinite both;
+  opacity: 1;
+}
+
+.flash-element {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  background-color: white;
+  opacity: 0;
+  transition: 0.6s opacity;
+  pointer-events: none;
+  z-index: 40;
+}
+
+.flash-element.flashing {
+  transition: 0s opacity;
+  opacity: 1;
+  pointer-events: auto;
+  z-index: 100;
+}
+
+.fade-container {
+  opacity: 0;
+  pointer-events: none;
+  transition: 0.3s opacity;
+}
+
+/* Preview Styles */
+#preview-container {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  z-index: 50;
+}
+
+#preview-container.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+#preview-video,
+#preview-image {
+  max-width: 90vw;
+  max-height: 70vh;
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  display: none;
+  object-fit: contain;
+}
+
+#preview-video {
+  background: #000;
+  min-width: 300px;
+  min-height: 200px;
+}
+
+.preview-controls {
+  display: flex;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.preview-controls button {
+  background: rgba(255,255,255,0.15);
+  border: 2px solid rgba(255,255,255,0.3);
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border-radius: 50px;
+  font-size: 1rem;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
+}
+
+.preview-controls button:hover {
+  background: rgba(255,255,255,0.25);
+  border-color: rgba(255,255,255,0.5);
+  transform: translateY(-2px);
+}
+
+#preview-share {
+  background: linear-gradient(45deg, #1e88e5, #42a5f5);
+  border-color: #1e88e5;
+}
+
+#preview-download {
+  background: linear-gradient(45deg, #43a047, #66bb6a);
+  border-color: #43a047;
+}
+
+#preview-close {
+  background: linear-gradient(45deg, #e53935, #ef5350);
+  border-color: #e53935;
+}#tapOverlay { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:1.25rem; color:#fff; background:rgba(0,0,0,.65); z-index:6; user-select:none; }

@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>Chroma Key Overlay</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <video id="webcam" autoplay playsinline muted></video>
+    <canvas id="three-canvas"></canvas>
+    <div id="ui" hidden>
+      <label>Key <input id="keyColor" type="color" value="#00ff00" /></label>
+      <label>Tol <input id="similarity" type="range" min="0" max="1" step="0.01" value="0.4" /></label>
+      <label>Smooth <input id="smoothness" type="range" min="0" max="1" step="0.01" value="0.08" /></label>
+      <label style="display:flex;align-items:center;gap:.25rem;">Vid <input id="videoFile" type="file" accept="video/*" /></label>
+      <label>X <input id="offsetX" type="range" min="-1" max="1" step="0.01" value="-0.30" /></label>
+    </div>
+    <div id="bottomBar">
+      <div class="recorder-container">
+        <div class="progress-container">
+          <svg width="100%" height="100%" viewBox="0 0 36 36">
+            <circle class="progress-track" cx="18" cy="18" r="16" />
+            <circle class="progress-bar" cx="18" cy="18" r="16" />
+            <circle class="loading-circle" cx="18" cy="18" r="16" />
+          </svg>
+        </div>
+        <button id="recorder-button" type="button" aria-label="Record"></button>
+      </div>
+    </div>
+    <div class="flash-element"></div>
+    <div id="preview-container" class="fade-container">
+      <video id="preview-video" playsinline muted controls autoplay loop></video>
+      <img id="preview-image" />
+      <div class="preview-controls">
+        <button id="preview-close" type="button">✕</button>
+        <button id="preview-share" type="button">Share</button>
+        <button id="preview-download" type="button">↓</button>
+      </div>
+    </div>
+    <div id="tapOverlay" hidden>Tap to Start</div>
+  </div>
+  <script type="module" src="/js/main.js"></script>
+</body>
+</html>
