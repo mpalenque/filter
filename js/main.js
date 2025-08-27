@@ -74,6 +74,34 @@ async function initWebcam() {
   }
 }
 
+function createFallbackTexture() {
+  console.log('Creating fallback texture...');
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+  
+  // Create a green screen color (this will be removed by chroma key)
+  ctx.fillStyle = '#00ff00';
+  ctx.fillRect(0, 0, 512, 512);
+  
+  // Add some visible pattern that won't be chroma keyed
+  ctx.fillStyle = '#ff0000';
+  ctx.font = '48px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText('OVERLAY', 256, 256);
+  
+  videoTex = new THREE.CanvasTexture(canvas);
+  videoTex.colorSpace = THREE.SRGBColorSpace;
+  videoTex.generateMipmaps = false;
+  videoTex.minFilter = THREE.LinearFilter;
+  videoTex.magFilter = THREE.LinearFilter;
+  videoTex.wrapS = THREE.ClampToEdgeWrapping;
+  videoTex.wrapT = THREE.ClampToEdgeWrapping;
+  
+  console.log('Fallback texture created');
+}
+
 async function loadOverlayVideo(customURL) {
   console.log('Loading overlay video...', customURL || './vid.mp4');
   
@@ -81,44 +109,99 @@ async function loadOverlayVideo(customURL) {
   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   
   if (isMobile) {
-    console.log('Mobile detected, creating fallback texture instead of loading video');
-    // Create a simple colored texture for mobile fallback
-    const canvas = document.createElement('canvas');
-    canvas.width = 512;
-    canvas.height = 512;
-    const ctx = canvas.getContext('2d');
+    console.log('Mobile detected, trying optimized video loading...');
     
-    // Create a green screen color for testing
-    ctx.fillStyle = '#00ff00';
-    ctx.fillRect(0, 0, 512, 512);
+    // Try to load video with mobile-specific settings
+    overlayVideo = document.createElement('video');
+    overlayVideo.setAttribute('playsinline', 'true');
+    overlayVideo.setAttribute('webkit-playsinline', 'true');
+    overlayVideo.muted = true;
+    overlayVideo.loop = true;
+    overlayVideo.autoplay = true;
+    overlayVideo.preload = 'metadata'; // Less aggressive preload for mobile
     
-    // Add some pattern to make it visible
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '48px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText('OVERLAY', 256, 256);
+    // Don't set crossOrigin for same-origin videos on mobile
+    const videoSrc = customURL || './vid.mp4';
     
-    videoTex = new THREE.CanvasTexture(canvas);
-    videoTex.colorSpace = THREE.SRGBColorSpace;
-    videoTex.generateMipmaps = false;
-    videoTex.minFilter = THREE.LinearFilter;
-    videoTex.magFilter = THREE.LinearFilter;
-    videoTex.wrapS = THREE.ClampToEdgeWrapping;
-    videoTex.wrapT = THREE.ClampToEdgeWrapping;
+    console.log('Mobile: Video src set to:', videoSrc);
     
-    console.log('Mobile fallback texture created successfully');
+    // Create a promise that resolves when video is ready
+    await new Promise((resolve, reject) => {
+      let resolved = false;
+      
+      const onSuccess = () => {
+        if (resolved) return;
+        resolved = true;
+        console.log('Mobile: Overlay video loaded successfully');
+        resolve();
+      };
+      
+      const onError = (e) => {
+        if (resolved) return;
+        resolved = true;
+        console.error('Mobile: Error loading overlay video:', e);
+        // Create fallback texture instead of rejecting
+        createFallbackTexture();
+        resolve();
+      };
+      
+      // Multiple events that indicate the video is ready
+      overlayVideo.addEventListener('loadedmetadata', onSuccess, { once: true });
+      overlayVideo.addEventListener('canplaythrough', onSuccess, { once: true });
+      overlayVideo.addEventListener('error', onError, { once: true });
+      
+      // Set source after event listeners
+      overlayVideo.src = videoSrc;
+      
+      // Timeout fallback
+      setTimeout(() => {
+        if (!resolved) {
+          console.warn('Mobile: Video loading timeout, using fallback');
+          onError(new Error('Timeout'));
+        }
+      }, 5000); // Shorter timeout for mobile
+    });
+    
+    // Try to create video texture if video loaded successfully
+    if (overlayVideo.readyState >= 2) { // HAVE_CURRENT_DATA or higher
+      try {
+        videoTex = new THREE.VideoTexture(overlayVideo);
+        videoTex.colorSpace = THREE.SRGBColorSpace;
+        videoTex.generateMipmaps = false;
+        videoTex.minFilter = THREE.LinearFilter;
+        videoTex.magFilter = THREE.LinearFilter;
+        videoTex.wrapS = THREE.ClampToEdgeWrapping;
+        videoTex.wrapT = THREE.ClampToEdgeWrapping;
+        
+        console.log('Mobile: Video texture created successfully');
+        
+        // Try to play (might fail but that's OK)
+        try {
+          await overlayVideo.play();
+          console.log('Mobile: Video playing');
+        } catch (playError) {
+          console.warn('Mobile: Autoplay failed, will play on user interaction:', playError);
+        }
+        
+        return;
+      } catch (texError) {
+        console.error('Mobile: Failed to create video texture:', texError);
+      }
+    }
+    
+    // If we get here, create fallback texture
+    createFallbackTexture();
     return;
   }
   
-  // Desktop: load actual video
+  // Desktop: load actual video (original code)
   overlayVideo = document.createElement('video');
   overlayVideo.setAttribute('playsinline', '');
-  overlayVideo.muted = true; // required for autoplay on mobile
+  overlayVideo.muted = true;
   overlayVideo.loop = true;
   overlayVideo.crossOrigin = 'anonymous';
   
-  // Set src after crossOrigin for safety
-  const videoSrc = customURL || './vid.mp4'; // Ensure relative path with ./
+  const videoSrc = customURL || './vid.mp4';
   overlayVideo.src = videoSrc;
   console.log('Video src set to:', videoSrc);
 
