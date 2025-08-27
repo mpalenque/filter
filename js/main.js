@@ -126,12 +126,14 @@ async function loadOverlayVideo(customURL) {
     console.log('Mobile: Video src set to:', videoSrc);
     
     // Create a promise that resolves when video is ready
+    let videoReady = false;
     await new Promise((resolve, reject) => {
       let resolved = false;
       
       const onSuccess = () => {
         if (resolved) return;
         resolved = true;
+        videoReady = true;
         console.log('Mobile: Overlay video loaded successfully');
         resolve();
       };
@@ -140,18 +142,26 @@ async function loadOverlayVideo(customURL) {
         if (resolved) return;
         resolved = true;
         console.error('Mobile: Error loading overlay video:', e);
-        // Create fallback texture instead of rejecting
-        createFallbackTexture();
-        resolve();
+        videoReady = false;
+        resolve(); // Don't reject, we'll handle fallback below
       };
       
       // Multiple events that indicate the video is ready
-      overlayVideo.addEventListener('loadedmetadata', onSuccess, { once: true });
+      overlayVideo.addEventListener('loadeddata', onSuccess, { once: true }); // Better for mobile
       overlayVideo.addEventListener('canplaythrough', onSuccess, { once: true });
       overlayVideo.addEventListener('error', onError, { once: true });
       
       // Set source after event listeners
       overlayVideo.src = videoSrc;
+      
+      // Also trigger success if video becomes ready quickly
+      overlayVideo.addEventListener('loadstart', () => {
+        setTimeout(() => {
+          if (!resolved && overlayVideo.readyState >= 3) { // HAVE_FUTURE_DATA
+            onSuccess();
+          }
+        }, 100);
+      });
       
       // Timeout fallback
       setTimeout(() => {
@@ -159,12 +169,15 @@ async function loadOverlayVideo(customURL) {
           console.warn('Mobile: Video loading timeout, using fallback');
           onError(new Error('Timeout'));
         }
-      }, 5000); // Shorter timeout for mobile
+      }, 8000); // Longer timeout to give video more time
     });
     
     // Try to create video texture if video loaded successfully
-    if (overlayVideo.readyState >= 2) { // HAVE_CURRENT_DATA or higher
+    if (videoReady && overlayVideo.readyState >= 1) { // HAVE_METADATA or higher
       try {
+        // Wait a bit more for video to be fully ready
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
         videoTex = new THREE.VideoTexture(overlayVideo);
         videoTex.colorSpace = THREE.SRGBColorSpace;
         videoTex.generateMipmaps = false;
@@ -183,10 +196,12 @@ async function loadOverlayVideo(customURL) {
           console.warn('Mobile: Autoplay failed, will play on user interaction:', playError);
         }
         
-        return;
+        return; // Success! Exit here
       } catch (texError) {
         console.error('Mobile: Failed to create video texture:', texError);
       }
+    } else {
+      console.log('Mobile: Video not ready (ready:', videoReady, 'readyState:', overlayVideo?.readyState, '), using fallback');
     }
     
     // If we get here, create fallback texture
