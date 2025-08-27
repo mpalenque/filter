@@ -2,12 +2,13 @@
 // (No direct copy; simple GLSL shader implementing chroma key.)
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160/build/three.module.js';
 
-export function createChromaKeyMaterial({ texture, keyColor = new THREE.Color('#00ff00'), similarity = 0.4, smoothness = 0.08 }) {
+export function createChromaKeyMaterial({ texture, keyColor = new THREE.Color('#00ff00'), similarity = 0.15, smoothness = 0.02, debugMode = false }) {
   const uniforms = {
     map: { value: texture },
     keyColor: { value: keyColor },
     similarity: { value: similarity },
-    smoothness: { value: smoothness }
+    smoothness: { value: smoothness },
+    debugMode: { value: debugMode ? 1.0 : 0.0 }
   };
   const material = new THREE.ShaderMaterial({
     transparent: true,
@@ -26,6 +27,7 @@ export function createChromaKeyMaterial({ texture, keyColor = new THREE.Color('#
       uniform vec3 keyColor;
       uniform float similarity; // threshold
       uniform float smoothness; // softness edge
+      uniform float debugMode; // 1.0 = show video without chroma key
 
       // Convert RGB to YCbCr to better isolate chroma difference
       vec3 rgb2ycbcr(vec3 c){
@@ -36,6 +38,13 @@ export function createChromaKeyMaterial({ texture, keyColor = new THREE.Color('#
       }
       void main(){
         vec4 color = texture2D(map, vUv);
+        
+        // Debug mode: show video without any chroma keying
+        if (debugMode > 0.5) {
+          gl_FragColor = color;
+          return;
+        }
+        
         vec3 ycbcr = rgb2ycbcr(color.rgb);
         vec3 keyYcbcr = rgb2ycbcr(keyColor.rgb);
         float chromaDist = distance(ycbcr.yz, keyYcbcr.yz);

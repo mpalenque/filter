@@ -304,7 +304,10 @@ function initThree() {
   camera = new THREE.OrthographicCamera(-1,1,1,-1,0,10);
   camera.position.z = 1;
 
-  chromaMaterial = createChromaKeyMaterial({ texture: videoTex });
+  chromaMaterial = createChromaKeyMaterial({ 
+    texture: videoTex, 
+    debugMode: true // Temporarily disable chroma key to see if video shows
+  });
   const geo = new THREE.PlaneGeometry(2, 2);
   plane = new THREE.Mesh(geo, chromaMaterial);
   scene.add(plane);
