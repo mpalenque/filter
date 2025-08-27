@@ -218,8 +218,33 @@ html,body { margin:0; padding:0; height:100%; background:#000; font-family: syst
 }
 
 #preview-share {
-  background: linear-gradient(45deg, #1e88e5, #42a5f5);
-  border-color: #1e88e5;
+  background: linear-gradient(45deg, #667eea 0%, #764ba2 100%);
+  border-color: rgba(102, 126, 234, 0.5);
+}
+
+/* Recorder Loading States */
+#recorder-container.loading {
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+#recorder-container.loading::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 30px;
+  height: 30px;
+  border: 3px solid rgba(255,255,255,0.3);
+  border-top: 3px solid white;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: translate(-50%, -50%) rotate(0deg); }
+  100% { transform: translate(-50%, -50%) rotate(360deg); }
 }
 
 #preview-download {

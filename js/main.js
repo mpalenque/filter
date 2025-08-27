@@ -25,9 +25,52 @@ let recorder, recordedChunks = [], pressTimer, isRecording = false, recordStartT
 let currentFile = null; // For preview
 
 async function initWebcam() {
-  const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
-  webcamEl.srcObject = stream;
-  await webcamEl.play();
+  try {
+    // Check if we're on HTTPS (required for getUserMedia on GitHub Pages)
+    if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+      throw new Error('HTTPS required for camera access');
+    }
+    
+    // Check if getUserMedia is available
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      throw new Error('getUserMedia not supported');
+    }
+    
+    const stream = await navigator.mediaDevices.getUserMedia({ 
+      video: { 
+        facingMode: 'user',
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
+      }, 
+      audio: false 
+    });
+    webcamEl.srcObject = stream;
+    await webcamEl.play();
+    console.log('Webcam initialized successfully');
+  } catch (error) {
+    console.error('Webcam initialization failed:', error);
+    
+    // Show error message to user
+    const errorMsg = document.createElement('div');
+    errorMsg.style.cssText = `
+      position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      background: rgba(255,0,0,0.9); color: white; padding: 20px; border-radius: 10px;
+      text-align: center; z-index: 1000; max-width: 90vw;
+    `;
+    
+    if (error.name === 'NotAllowedError') {
+      errorMsg.innerHTML = 'Camera access denied.<br>Please allow camera permissions and refresh.';
+    } else if (error.name === 'NotFoundError') {
+      errorMsg.innerHTML = 'No camera found.<br>Please connect a camera and refresh.';
+    } else if (error.message.includes('HTTPS')) {
+      errorMsg.innerHTML = 'Camera requires HTTPS.<br>Please visit the HTTPS version of this page.';
+    } else {
+      errorMsg.innerHTML = `Camera error: ${error.message}<br>Please check browser compatibility.`;
+    }
+    
+    document.body.appendChild(errorMsg);
+    throw error;
+  }
 }
 
 async function loadOverlayVideo(customURL) {
@@ -123,24 +166,59 @@ function wireUI(){
 
 async function autoStart(){
   try {
+    // Show loading state
+    recorderContainer.classList.add('loading');
+    
     await Promise.all([initWebcam(), loadOverlayVideo()]);
     initThree();
     wireUI();
+    
+    // Remove loading state
+    recorderContainer.classList.remove('loading');
+    console.log('App initialized successfully');
   } catch (e){
-    console.warn('Auto start blocked, will require tap', e);
+    console.warn('Auto start failed:', e);
+    recorderContainer.classList.remove('loading');
+    
+    // Show tap overlay as fallback
     tapOverlay.hidden = false;
+    tapOverlay.innerHTML = `
+      <div style="text-align: center;">
+        <div style="font-size: 1.5rem; margin-bottom: 10px;">⚠️</div>
+        <div>Tap to retry initialization</div>
+        <div style="font-size: 0.8rem; margin-top: 10px; opacity: 0.7;">
+          Camera access required
+        </div>
+      </div>
+    `;
   }
 }
 
 tapOverlay.addEventListener('click', async ()=> {
-  tapOverlay.textContent = 'Starting...';
+  tapOverlay.innerHTML = '<div>Starting...</div>';
+  recorderContainer.classList.add('loading');
+  
   try {
     await Promise.all([initWebcam(), loadOverlayVideo()]);
     initThree();
     wireUI();
     tapOverlay.remove();
+    recorderContainer.classList.remove('loading');
   } catch (e){
-    tapOverlay.textContent = 'Failed - Tap Again';
+    console.error('Manual start failed:', e);
+    recorderContainer.classList.remove('loading');
+    tapOverlay.innerHTML = `
+      <div style="text-align: center;">
+        <div style="font-size: 1.5rem; margin-bottom: 10px;">❌</div>
+        <div>Initialization Failed</div>
+        <div style="font-size: 0.8rem; margin-top: 10px;">
+          ${e.message || 'Unknown error'}
+        </div>
+        <div style="font-size: 0.7rem; margin-top: 15px; opacity: 0.7;">
+          Tap to retry
+        </div>
+      </div>
+    `;
   }
 });
 
