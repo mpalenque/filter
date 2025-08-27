@@ -3,7 +3,8 @@ import { createChromaKeyMaterial } from './ChromaKeyMaterial.js';
 
 const webcamEl = document.getElementById('webcam');
 const canvas = document.getElementById('three-canvas');
-const tapOverlay = document.getElementById('tapOverlay');
+const tapOverlay = document.getElementById('tap-to-start');
+const loadingOverlay = document.getElementById('loading-overlay');
 const keyColorInput = document.getElementById('keyColor');
 const similarityInput = document.getElementById('similarity');
 const smoothnessInput = document.getElementById('smoothness');
@@ -165,6 +166,7 @@ function wireUI(){
 }
 
 async function autoStart(){
+  // Start immediately without waiting for user interaction
   try {
     // Show loading state
     recorderContainer.classList.add('loading');
@@ -173,54 +175,68 @@ async function autoStart(){
     initThree();
     wireUI();
     
-    // Remove loading state
+    // Remove loading state and hide overlay
     recorderContainer.classList.remove('loading');
+    if (loadingOverlay) {
+      loadingOverlay.style.display = 'none';
+    }
     console.log('App initialized successfully');
   } catch (e){
     console.warn('Auto start failed:', e);
     recorderContainer.classList.remove('loading');
     
     // Show tap overlay as fallback
-    tapOverlay.hidden = false;
-    tapOverlay.innerHTML = `
-      <div style="text-align: center;">
-        <div style="font-size: 1.5rem; margin-bottom: 10px;">⚠️</div>
-        <div>Tap to retry initialization</div>
-        <div style="font-size: 0.8rem; margin-top: 10px; opacity: 0.7;">
-          Camera access required
+    if (loadingOverlay && tapOverlay) {
+      loadingOverlay.style.display = 'flex';
+      tapOverlay.innerHTML = `
+        <div style="text-align: center;">
+          <div style="font-size: 1.5rem; margin-bottom: 10px;">⚠️</div>
+          <div>Tap to retry initialization</div>
+          <div style="font-size: 0.8rem; margin-top: 10px; opacity: 0.7;">
+            Camera access required
+          </div>
         </div>
-      </div>
-    `;
+      `;
+    }
   }
 }
 
-tapOverlay.addEventListener('click', async ()=> {
-  tapOverlay.innerHTML = '<div>Starting...</div>';
-  recorderContainer.classList.add('loading');
-  
-  try {
-    await Promise.all([initWebcam(), loadOverlayVideo()]);
-    initThree();
-    wireUI();
-    tapOverlay.remove();
-    recorderContainer.classList.remove('loading');
-  } catch (e){
-    console.error('Manual start failed:', e);
-    recorderContainer.classList.remove('loading');
-    tapOverlay.innerHTML = `
-      <div style="text-align: center;">
-        <div style="font-size: 1.5rem; margin-bottom: 10px;">❌</div>
-        <div>Initialization Failed</div>
-        <div style="font-size: 0.8rem; margin-top: 10px;">
-          ${e.message || 'Unknown error'}
-        </div>
-        <div style="font-size: 0.7rem; margin-top: 15px; opacity: 0.7;">
-          Tap to retry
-        </div>
-      </div>
-    `;
-  }
-});
+// Add event listener only if tapOverlay exists
+if (tapOverlay) {
+  tapOverlay.addEventListener('click', async ()=> {
+    if (tapOverlay) {
+      tapOverlay.innerHTML = '<div>Starting...</div>';
+    }
+    recorderContainer.classList.add('loading');
+    
+    try {
+      await Promise.all([initWebcam(), loadOverlayVideo()]);
+      initThree();
+      wireUI();
+      if (loadingOverlay) {
+        loadingOverlay.style.display = 'none';
+      }
+      recorderContainer.classList.remove('loading');
+    } catch (e){
+      console.error('Manual start failed:', e);
+      recorderContainer.classList.remove('loading');
+      if (tapOverlay) {
+        tapOverlay.innerHTML = `
+          <div style="text-align: center;">
+            <div style="font-size: 1.5rem; margin-bottom: 10px;">❌</div>
+            <div>Initialization Failed</div>
+            <div style="font-size: 0.8rem; margin-top: 10px;">
+              ${e.message || 'Unknown error'}
+            </div>
+            <div style="font-size: 0.7rem; margin-top: 15px; opacity: 0.7;">
+              Tap to retry
+            </div>
+          </div>
+        `;
+      }
+    }
+  });
+}
 
 window.addEventListener('load', autoStart);
 
