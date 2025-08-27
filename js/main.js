@@ -348,9 +348,9 @@ function initThree() {
   chromaMaterial = createChromaKeyMaterial({ 
     texture: videoTex,
     keyColor: new THREE.Color('#43A34E'), // Specific green color from video
-    similarity: 0.5,   // More aggressive - catch more green variations
-    smoothness: 0.15,  // Larger smooth transition for better coverage
-    spill: 0.25,       // Much more aggressive spill removal
+    similarity: 0.6,   // More aggressive - catch more green variations
+    smoothness: 0.25,  // Larger smooth transition for better coverage
+    spill: 0.4,        // Much more aggressive spill removal
     debugMode: false   // Start with chroma key active
   });
   

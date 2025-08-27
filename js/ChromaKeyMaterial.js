@@ -33,8 +33,8 @@ export function createChromaKeyMaterial({
     vertexShader: /* glsl */`
       varying vec2 vUv;
       void main(){
-        // Flip Y coordinate to fix upside-down video
-        vUv = vec2(uv.x, 1.0 - uv.y);
+        // Normal UV coordinates (no Y flip - video was upside down before)
+        vUv = uv;
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
       }
     `,
@@ -95,8 +95,22 @@ export function createChromaKeyMaterial({
         // Combine HSV and RGB distances for better accuracy
         float combinedDist = mix(dist, rgbDist * 2.0, 0.3);
         
-        // Create smooth alpha mask
+        // Create smooth alpha mask with more aggressive transparency
         float alpha = smoothstep(similarity - smoothness, similarity + smoothness, combinedDist);
+        
+        // Additional pass to remove darker green areas that might appear as black edges
+        float luminance = dot(texColor.rgb, vec3(0.299, 0.587, 0.114));
+        float greenness = texColor.g - max(texColor.r, texColor.b);
+        
+        // If it's a dark greenish color, make it more transparent
+        if (greenness > 0.1 && luminance < 0.3) {
+          alpha = max(alpha, 0.8);
+        }
+        
+        // Make very dark pixels more transparent to eliminate black edges
+        if (luminance < 0.15) {
+          alpha = max(alpha, 0.6);
+        }
         
         // Spill removal - reduce key color bleeding
         vec3 finalColor = texColor.rgb;
