@@ -7,7 +7,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160/build/three.mod
 
 export function createChromaKeyMaterial({ 
   texture, 
-  keyColor = new THREE.Color('#00ff00'), 
+  keyColor = new THREE.Color('#43A34E'), 
   similarity = 0.4, 
   smoothness = 0.1,
   spill = 0.1,
@@ -71,9 +71,9 @@ export function createChromaKeyMaterial({
         float satDist = abs(texHsv.y - keyHsv.y);
         float valDist = abs(texHsv.z - keyHsv.z);
         
-        // More aggressive weighting for better chroma key with specific colors
-        // Hue is most important, but saturation also matters for green screen
-        return sqrt(hueDist * hueDist * 6.0 + satDist * satDist * 2.0 + valDist * valDist);
+        // Very aggressive weighting for green screen - prioritize hue matching
+        // Reduce saturation and value importance to catch more green variations
+        return sqrt(hueDist * hueDist * 8.0 + satDist * satDist * 1.5 + valDist * valDist * 0.8);
       }
 
       void main(){
