@@ -11,7 +11,7 @@ export function createChromaKeyMaterial({ texture, keyColor = new THREE.Color('#
     debugMode: { value: debugMode ? 1.0 : 0.0 }
   };
   const material = new THREE.ShaderMaterial({
-    transparent: false, // Disable transparency completely for debugging
+    transparent: true,
     uniforms,
     vertexShader: /* glsl */`
       varying vec2 vUv;
@@ -41,7 +41,7 @@ export function createChromaKeyMaterial({ texture, keyColor = new THREE.Color('#
         
         // Debug mode: show video without any chroma keying
         if (debugMode > 0.5) {
-          gl_FragColor = vec4(color.rgb, 1.0); // Force full opacity
+          gl_FragColor = color;
           return;
         }
         
