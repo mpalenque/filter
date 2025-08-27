@@ -348,16 +348,39 @@ function initThree() {
   chromaMaterial = createChromaKeyMaterial({ 
     texture: videoTex,
     keyColor: new THREE.Color('#43A34E'), // Specific green color from video
-    similarity: 0.6,   // More aggressive - catch more green variations
-    smoothness: 0.25,  // Larger smooth transition for better coverage
-    spill: 0.4,        // Much more aggressive spill removal
+    similarity: 0.5,   // Less aggressive to preserve other colors
+    smoothness: 0.2,   // Moderate smooth transition
+    spill: 0.3,        // Moderate spill removal
     debugMode: false   // Start with chroma key active
   });
   
   console.log('8th Wall chroma material created with texture:', videoTex);
   console.log('Using more aggressive parameters for better green removal');
   
-  const geo = new THREE.PlaneGeometry(2, 2);
+  // Calculate proper aspect ratio for video plane
+  let planeWidth = 2;
+  let planeHeight = 2;
+  
+  // Check if we have video dimensions and adjust for mobile devices
+  if (overlayVideo && overlayVideo.videoWidth && overlayVideo.videoHeight) {
+    const videoAspect = overlayVideo.videoWidth / overlayVideo.videoHeight;
+    const screenAspect = window.innerWidth / window.innerHeight;
+    
+    console.log('Video aspect:', videoAspect, 'Screen aspect:', screenAspect);
+    
+    // Adjust plane dimensions to maintain video aspect ratio
+    if (videoAspect > screenAspect) {
+      // Video is wider than screen
+      planeHeight = planeWidth / videoAspect;
+    } else {
+      // Video is taller than screen or same aspect
+      planeWidth = planeHeight * videoAspect;
+    }
+    
+    console.log('Adjusted plane dimensions:', planeWidth, 'x', planeHeight);
+  }
+  
+  const geo = new THREE.PlaneGeometry(planeWidth, planeHeight);
   plane = new THREE.Mesh(geo, chromaMaterial);
   scene.add(plane);
   // Move 30% left (plane spans -1..1 in orthographic; 30% of width = 0.6 * 0.5? Simpler: shift -0.3 * 2 = -0.6 of normalized width?).
@@ -389,6 +412,28 @@ function resize(){
   const w = window.innerWidth;
   const h = window.innerHeight;
   renderer.setSize(w, h);
+  
+  // Also update plane aspect ratio if video and plane exist
+  if (plane && overlayVideo && overlayVideo.videoWidth && overlayVideo.videoHeight) {
+    const videoAspect = overlayVideo.videoWidth / overlayVideo.videoHeight;
+    const screenAspect = w / h;
+    
+    let planeWidth = 2;
+    let planeHeight = 2;
+    
+    // Maintain video aspect ratio
+    if (videoAspect > screenAspect) {
+      planeHeight = planeWidth / videoAspect;
+    } else {
+      planeWidth = planeHeight * videoAspect;
+    }
+    
+    // Update plane geometry
+    plane.geometry.dispose();
+    plane.geometry = new THREE.PlaneGeometry(planeWidth, planeHeight);
+    
+    console.log('Plane resized to:', planeWidth, 'x', planeHeight, 'for aspect:', videoAspect);
+  }
 }
 window.addEventListener('resize', () => resize());
 

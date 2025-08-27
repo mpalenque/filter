@@ -95,21 +95,17 @@ export function createChromaKeyMaterial({
         // Combine HSV and RGB distances for better accuracy
         float combinedDist = mix(dist, rgbDist * 2.0, 0.3);
         
-        // Create smooth alpha mask with more aggressive transparency
+        // Create smooth alpha mask
         float alpha = smoothstep(similarity - smoothness, similarity + smoothness, combinedDist);
         
-        // Additional pass to remove darker green areas that might appear as black edges
-        float luminance = dot(texColor.rgb, vec3(0.299, 0.587, 0.114));
+        // Only apply additional transparency for specifically green colors
         float greenness = texColor.g - max(texColor.r, texColor.b);
+        float luminance = dot(texColor.rgb, vec3(0.299, 0.587, 0.114));
         
-        // If it's a dark greenish color, make it more transparent
-        if (greenness > 0.1 && luminance < 0.3) {
-          alpha = max(alpha, 0.8);
-        }
-        
-        // Make very dark pixels more transparent to eliminate black edges
-        if (luminance < 0.15) {
-          alpha = max(alpha, 0.6);
+        // More precise green detection - only affect truly green pixels
+        if (greenness > 0.15 && texColor.g > 0.4 && combinedDist < similarity * 1.2) {
+          // Only enhance transparency for green areas near the key color
+          alpha = max(alpha, 0.7);
         }
         
         // Spill removal - reduce key color bleeding
