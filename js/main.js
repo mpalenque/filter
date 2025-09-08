@@ -622,7 +622,6 @@ if (tapOverlay) {
       console.log('Manual initialization: setting up Three.js...');
       initThree();
   updatePlaneTransform();
-  updateWebcamFraming();
       wireUI();
       if (loadingOverlay) {
         loadingOverlay.style.display = 'none';
@@ -653,10 +652,7 @@ if (tapOverlay) {
 window.addEventListener('load', autoStart);
 
 // Escuchar cuando el video realmente tenga dimensiones para actualizar escala
-document.addEventListener('loadeddata', () => {
-  updatePlaneTransform();
-  updateWebcamFraming();
-}, true);
+document.addEventListener('loadeddata', () => updatePlaneTransform(), true);
 
 // Removed offsetXInput listener (fixed position)
 
