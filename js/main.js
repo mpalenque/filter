@@ -36,6 +36,12 @@ const FRAMING = {
   yOffset: -0.602
 };
 
+// Target: center of video should sit at 10% from the right edge of the screen.
+// Screen clip space is [-1,1]; distance from right edge (x=1) to center is 0.2 -> centerX = 0.8.
+// Nuevo objetivo: centro del video al 40% del borde derecho (más a la izquierda).
+// Distancia al borde derecho = 0.4 => centerX = 1 - 0.4 = 0.6
+const TARGET_CENTER_X = 0.6; // clip-space coordinate for video center (10% más a la izquierda)
+
 function onVideoReady(cb){
   if (overlayVideo && overlayVideo.videoWidth > 0) {
     cb();
@@ -356,24 +362,30 @@ function updatePlaneTransform(){
   const h = window.innerHeight;
   const videoAspect = overlayVideo.videoWidth / overlayVideo.videoHeight;
   const screenAspect = w / h;
-  // Reset scale
   plane.scale.set(1,1,1);
-  // Emular object-fit: cover
+  // Base cover (object-fit:cover style)
   if (videoAspect > screenAspect){
-    // video más ancho → expandir X
     plane.scale.x = videoAspect / screenAspect;
   } else if (videoAspect < screenAspect){
-    // pantalla más ancha → expandir Y
     plane.scale.y = screenAspect / videoAspect;
   }
-  // Apply framing zoom
+  // Apply framing zoom uniformly
   plane.scale.x *= FRAMING.zoom;
   plane.scale.y *= FRAMING.zoom;
-  // Offset horizontal proporcional a exceso de ancho tras escalar
-  // Fixed horizontal shift = 40% of extra width after scaling (0.40)
-  const extra = (plane.scale.x - 1);
-  plane.position.x = 0.40 * extra;
-  plane.position.y = FRAMING.yOffset * plane.scale.y; // apply vertical framing (scaled for consistency)
+  // Shrink uniforme solicitado (20% más chico, ahora adicional 20% más = 36% total)
+  const SHRINK_FACTOR = 0.64;
+  plane.scale.x *= SHRINK_FACTOR;
+  plane.scale.y *= SHRINK_FACTOR;
+  // Asegurar ancho extra mínimo para poder situar el centro en TARGET_CENTER_X sin dejar fondo vacío izquierdo
+  const requiredExtra = TARGET_CENTER_X; // necesitamos al menos este extra (scale.x - 1 >= TARGET_CENTER_X)
+  if (plane.scale.x - 1 < requiredExtra) {
+    const factor = (1 + requiredExtra + 0.02) / plane.scale.x; // + margen de seguridad
+    plane.scale.x *= factor;
+    plane.scale.y *= factor; // mantener proporción y evitar distorsión
+  }
+  // Colocar centro exactamente en TARGET_CENTER_X
+  plane.position.x = TARGET_CENTER_X;
+  plane.position.y = FRAMING.yOffset * plane.scale.y;
 }
 
 function initThree() {
