@@ -9,7 +9,7 @@ html,body { margin:0; padding:0; height:100%; background:#000; font-family: syst
   background: white;
   z-index: 30;
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-  height: 60px;
+  height: 80px;
   padding: env(safe-area-inset-top) 0 0 0;
 }
 
@@ -17,17 +17,17 @@ html,body { margin:0; padding:0; height:100%; background:#000; font-family: syst
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 60px;
+  height: 80px;
   padding: 0 20px;
 }
 
 .logo {
-  height: 40px;
+  height: 60px;
   width: auto;
   object-fit: contain;
 }
 
-#app { position:relative; width:100vw; height:100vh; overflow:hidden; padding-top: calc(60px + env(safe-area-inset-top)); }
+#app { position:relative; width:100vw; height:100vh; overflow:hidden; padding-top: calc(80px + env(safe-area-inset-top)); }
 #webcam { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:1; }
 #three-canvas { position:absolute; inset:0; width:100%; height:100%; z-index:2; }
 #bottomBar { position:fixed; left:0; right:0; bottom:0; display:flex; justify-content:center; align-items:flex-end; padding:0 1.5rem calc(env(safe-area-inset-bottom) + 1rem); pointer-events:none; z-index:25; }
@@ -234,29 +234,25 @@ html,body { margin:0; padding:0; height:100%; background:#000; font-family: syst
 }
 
 .preview-controls button {
-  background: rgba(255,255,255,0.15);
-  border: 2px solid rgba(255,255,255,0.3);
+  background: #16252e;
+  border: 2px solid #53c9cc;
   color: white;
   padding: 0.75rem 1.5rem;
   border-radius: 50px;
   font-size: 1rem;
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 600;
   cursor: pointer;
   backdrop-filter: blur(10px);
   transition: all 0.3s ease;
 }
 
 .preview-controls button:hover {
-  background: rgba(255,255,255,0.18);
-  border: 1px solid rgba(255,255,255,0.35);
-  color: white;
-  padding: clamp(0.55rem, 1.5vmin, 0.8rem) clamp(1rem, 3vmin, 1.4rem);
-  border-radius: 48px;
-  font-size: clamp(.8rem, 2.2vmin, 1rem);
-  cursor: pointer;
-  backdrop-filter: blur(14px) saturate(140%);
-  transition: all 0.3s ease;
-  line-height: 1.1;
-  letter-spacing: .5px;
+  background: #53c9cc;
+  border: 2px solid #53c9cc;
+  color: #16252e;
+  transform: scale(1.05);
+}
 
 /* Recorder Loading States */
 #recorder-container.loading {
@@ -298,11 +294,37 @@ html,body { margin:0; padding:0; height:100%; background:#000; font-family: syst
 }
 
 #preview-download {
-  background: linear-gradient(45deg, #43a047, #66bb6a);
-  border-color: #43a047;
+  background: #53c9cc;
+  border-color: #53c9cc;
+  color: #16252e;
+}
+
+#preview-download:hover {
+  background: #16252e;
+  border-color: #53c9cc;
+  color: #53c9cc;
 }
 
 #preview-close {
-  background: linear-gradient(45deg, #e53935, #ef5350);
-  border-color: #e53935;
+  background: #16252e;
+  border-color: #53c9cc;
+  color: white;
+}
+
+#preview-close:hover {
+  background: #53c9cc;
+  border-color: #53c9cc;
+  color: #16252e;
+}
+
+#preview-share {
+  background: #53c9cc;
+  border-color: #53c9cc;
+  color: #16252e;
+}
+
+#preview-share:hover {
+  background: #16252e;
+  border-color: #53c9cc;
+  color: #53c9cc;
 }#tapOverlay { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:1.25rem; color:#fff; background:rgba(0,0,0,.65); z-index:6; user-select:none; }

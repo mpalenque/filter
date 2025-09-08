@@ -699,6 +699,18 @@ function drawWebcamCover(ctx, video, dw, dh){
   ctx.drawImage(video, sx, sy, sw, sh, 0, 0, dw, dh);
 }
 
+function drawWebcamCoverInArea(ctx, video, dw, dh){
+  // Función igual a drawWebcamCover pero para uso en áreas específicas
+  const vw = video.videoWidth; const vh = video.videoHeight;
+  if (!vw || !vh) return;
+  const scale = Math.max(dw / vw, dh / vh);
+  const sw = Math.floor(dw / scale);
+  const sh = Math.floor(dh / scale);
+  const sx = Math.floor((vw - sw) / 2);
+  const sy = Math.floor((vh - sh) / 2);
+  ctx.drawImage(video, sx, sy, sw, sh, 0, 0, dw, dh);
+}
+
 function beginVideoRecording(){
   // Always use composite recording to ensure webcam + overlay are combined visually
   isRecording = true;
@@ -721,9 +733,14 @@ function beginCompositeRecording(){
   // Manual composition preserving aspect ratio (avoid stretching / squashing)
   const MAX_W = 1280;
   const MAX_H = 720; // target for portrait height cap
+  const headerHeight = 80; // altura del header
+  
   let srcW = canvas.width;
-  let srcH = canvas.height;
-  if (!srcW || !srcH) { srcW = window.innerWidth; srcH = window.innerHeight; }
+  let srcH = canvas.height + headerHeight; // incluir header en altura total
+  if (!srcW || !srcH) { 
+    srcW = window.innerWidth; 
+    srcH = window.innerHeight; // ya incluye el header visualmente
+  }
 
   // Mantener relación de aspecto y escalar hacia abajo si excede los máximos
   let scale = 1;
@@ -744,18 +761,67 @@ function beginCompositeRecording(){
   const draw = ()=> {
     if (!isRecording) return;
     ctx.clearRect(0,0,recW,recH);
-    // 1. Webcam (cover)
+    
+    const headerScaledHeight = Math.round(headerHeight * scale);
+    const videoAreaHeight = recH - headerScaledHeight;
+    
+    // 1. Webcam (cover) - dibujar en el área debajo del header
     if (webcamEl.videoWidth) {
-      drawWebcamCover(ctx, webcamEl, recW, recH);
+      ctx.save();
+      ctx.translate(0, headerScaledHeight);
+      drawWebcamCoverInArea(ctx, webcamEl, recW, videoAreaHeight);
+      ctx.restore();
     }
+    
     // 2. Render overlay actualizado
     if (renderer && scene && camera) renderer.render(scene, camera);
-    // 3. Dibujar overlay escalado sin deformar (fuente ya tiene el mismo aspect que src)
+    
+    // 3. Dibujar overlay escalado sin deformar - también en el área debajo del header
     try {
-      ctx.drawImage(canvas, 0, 0, recW, recH);
+      ctx.save();
+      ctx.translate(0, headerScaledHeight);
+      const canvasScaleX = recW / canvas.width;
+      const canvasScaleY = videoAreaHeight / canvas.height;
+      ctx.scale(canvasScaleX, canvasScaleY);
+      ctx.drawImage(canvas, 0, 0);
+      ctx.restore();
     } catch(e){
       console.warn('Canvas draw failed:', e);
     }
+    
+    // 4. Dibujar el header en la parte superior
+    const header = document.getElementById('header');
+    if (header) {
+      // Crear un canvas temporal para el header
+      const headerCanvas = document.createElement('canvas');
+      headerCanvas.width = recW;
+      headerCanvas.height = headerScaledHeight;
+      const headerCtx = headerCanvas.getContext('2d');
+      
+      // Fondo blanco para el header
+      headerCtx.fillStyle = 'white';
+      headerCtx.fillRect(0, 0, recW, headerScaledHeight);
+      
+      // Dibujar el logo
+      const logo = header.querySelector('.logo');
+      if (logo && logo.complete) {
+        const logoHeight = 60 * scale;
+        const logoAspect = logo.naturalWidth / logo.naturalHeight;
+        const logoWidth = logoHeight * logoAspect;
+        const logoX = (recW - logoWidth) / 2;
+        const logoY = (headerScaledHeight - logoHeight) / 2;
+        
+        try {
+          headerCtx.drawImage(logo, logoX, logoY, logoWidth, logoHeight);
+        } catch(e) {
+          console.warn('Logo draw failed:', e);
+        }
+      }
+      
+      // Dibujar el header en el canvas principal
+      ctx.drawImage(headerCanvas, 0, 0);
+    }
+    
     recordRAF = requestAnimationFrame(draw);
   };
 
