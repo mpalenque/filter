@@ -28,7 +28,16 @@ html,body { margin:0; padding:0; height:100%; background:#000; font-family: syst
 }
 
 #app { position:relative; width:100vw; height:100vh; overflow:hidden; padding-top: calc(80px + env(safe-area-inset-top)); }
-#webcam { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:1; }
+#webcam { 
+  position:absolute; 
+  inset:0; 
+  width:100%; 
+  height:100%; 
+  object-fit:cover; 
+  z-index:1;
+  /* Aplicar el mismo framing que el overlay de Three.js */
+  transform-origin: center center;
+}
 #three-canvas { position:absolute; inset:0; width:100%; height:100%; z-index:2; }
 #bottomBar { position:fixed; left:0; right:0; bottom:0; display:flex; justify-content:center; align-items:flex-end; padding:0 1.5rem calc(env(safe-area-inset-bottom) + 1rem); pointer-events:none; z-index:25; }
 #bottomBar > * { pointer-events:auto; }

@@ -356,6 +356,48 @@ async function loadOverlayVideo(customURL) {
   videoTex.needsUpdate = true;
 }
 
+function updateWebcamFraming() {
+  if (!webcamEl || !webcamEl.videoWidth) return;
+  
+  // Aplicar las mismas transformaciones que updatePlaneTransform pero al webcam
+  const w = window.innerWidth;
+  const h = window.innerHeight - 80; // restar altura del header
+  const videoAspect = webcamEl.videoWidth / webcamEl.videoHeight;
+  const screenAspect = w / h;
+  
+  let scaleX = 1, scaleY = 1;
+  
+  // Base cover (object-fit:cover style)
+  if (videoAspect > screenAspect) {
+    scaleX = videoAspect / screenAspect;
+  } else if (videoAspect < screenAspect) {
+    scaleY = screenAspect / videoAspect;
+  }
+  
+  // Apply framing zoom uniformly
+  scaleX *= FRAMING.zoom;
+  scaleY *= FRAMING.zoom;
+  
+  // Shrink uniforme solicitado
+  const SHRINK_FACTOR = 0.64;
+  scaleX *= SHRINK_FACTOR;
+  scaleY *= SHRINK_FACTOR;
+  
+  // Asegurar ancho extra mínimo
+  const requiredExtra = TARGET_CENTER_X;
+  if (scaleX - 1 < requiredExtra) {
+    const factor = (1 + requiredExtra + 0.02) / scaleX;
+    scaleX *= factor;
+    scaleY *= factor;
+  }
+  
+  // Aplicar transformaciones CSS
+  const translateX = TARGET_CENTER_X * 50; // convertir a porcentaje
+  const translateY = FRAMING.yOffset * 50;
+  
+  webcamEl.style.transform = `translate(${translateX}%, ${translateY}%) scale(${scaleX}, ${scaleY})`;
+}
+
 function updatePlaneTransform(){
   if (!plane || !overlayVideo || !overlayVideo.videoWidth) return;
   const w = window.innerWidth;
@@ -428,6 +470,7 @@ function initThree() {
   plane = new THREE.Mesh(geo, chromaMaterial);
   scene.add(plane);
   updatePlaneTransform();
+  updateWebcamFraming();
   
   console.log('Plane created and positioned at x:', plane.position.x);
 
@@ -453,6 +496,7 @@ function animate(){
 function resize(){
   renderer.setSize(window.innerWidth, window.innerHeight, false);
   updatePlaneTransform();
+  updateWebcamFraming();
 }
 window.addEventListener('resize', () => resize());
 
@@ -578,6 +622,7 @@ if (tapOverlay) {
       console.log('Manual initialization: setting up Three.js...');
       initThree();
   updatePlaneTransform();
+  updateWebcamFraming();
       wireUI();
       if (loadingOverlay) {
         loadingOverlay.style.display = 'none';
@@ -608,7 +653,10 @@ if (tapOverlay) {
 window.addEventListener('load', autoStart);
 
 // Escuchar cuando el video realmente tenga dimensiones para actualizar escala
-document.addEventListener('loadeddata', () => updatePlaneTransform(), true);
+document.addEventListener('loadeddata', () => {
+  updatePlaneTransform();
+  updateWebcamFraming();
+}, true);
 
 // Removed offsetXInput listener (fixed position)
 
@@ -700,14 +748,18 @@ function drawWebcamCover(ctx, video, dw, dh){
 }
 
 function drawWebcamCoverInArea(ctx, video, dw, dh){
-  // Función igual a drawWebcamCover pero para uso en áreas específicas
-  const vw = video.videoWidth; const vh = video.videoHeight;
+  // Función que replica exactamente object-fit: cover del CSS para el webcam
+  const vw = video.videoWidth; 
+  const vh = video.videoHeight;
   if (!vw || !vh) return;
+  
+  // Lógica simple de cover - igual que el CSS object-fit: cover
   const scale = Math.max(dw / vw, dh / vh);
   const sw = Math.floor(dw / scale);
   const sh = Math.floor(dh / scale);
   const sx = Math.floor((vw - sw) / 2);
   const sy = Math.floor((vh - sh) / 2);
+  
   ctx.drawImage(video, sx, sy, sw, sh, 0, 0, dw, dh);
 }
 
@@ -776,14 +828,24 @@ function beginCompositeRecording(){
     // 2. Render overlay actualizado
     if (renderer && scene && camera) renderer.render(scene, camera);
     
-    // 3. Dibujar overlay escalado sin deformar - también en el área debajo del header
+    // 3. Dibujar overlay Three.js con el mismo framing que la vista en vivo
     try {
       ctx.save();
       ctx.translate(0, headerScaledHeight);
+      
+      // El canvas de Three.js ya contiene el overlay renderizado con el framing correcto
+      // Solo necesitamos escalarlo para que coincida con el área de video
       const canvasScaleX = recW / canvas.width;
       const canvasScaleY = videoAreaHeight / canvas.height;
-      ctx.scale(canvasScaleX, canvasScaleY);
-      ctx.drawImage(canvas, 0, 0);
+      
+      // Usar el menor scale para mantener aspecto y centrar
+      const uniformScale = Math.min(canvasScaleX, canvasScaleY);
+      const scaledW = canvas.width * uniformScale;
+      const scaledH = canvas.height * uniformScale;
+      const offsetX = (recW - scaledW) / 2;
+      const offsetY = (videoAreaHeight - scaledH) / 2;
+      
+      ctx.drawImage(canvas, offsetX, offsetY, scaledW, scaledH);
       ctx.restore();
     } catch(e){
       console.warn('Canvas draw failed:', e);
