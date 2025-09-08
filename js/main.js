@@ -11,7 +11,7 @@ const keyColorInput = document.getElementById('keyColor');
 const similarityInput = document.getElementById('similarity');
 const smoothnessInput = document.getElementById('smoothness');
 const videoFileInput = document.getElementById('videoFile');
-const offsetXInput = document.getElementById('offsetX');
+// Removed dynamic horizontal slider; using fixed offset
 const recorderButton = document.getElementById('recorder-button');
 const recorderContainer = document.querySelector('.recorder-container');
 const progressBar = document.querySelector('.progress-bar');
@@ -27,6 +27,14 @@ let renderer, scene, camera, plane, chromaMaterial, videoTex, overlayVideo;
 let recorder, recordedChunks = [], pressTimer, isRecording = false, recordStartTs = 0, progressInterval, recordRAF = 0;
 let currentFile = null; // For preview
 let pendingVideoReadyCallbacks = [];
+
+// Framing constants: adjust to show upper body (waist up) and slight right shift baseline
+const FRAMING = {
+  // Reduced zoom by ~30% (previous 1.55 * 0.70 ≈ 1.085). Rounded to 1.1 for smoother scaling.
+  zoom: 1.1,
+  // Additional 20% further down from previous -0.502 => -0.502 * 1.2 ≈ -0.602
+  yOffset: -0.602
+};
 
 function onVideoReady(cb){
   if (overlayVideo && overlayVideo.videoWidth > 0) {
@@ -114,7 +122,7 @@ function createFallbackTexture() {
 }
 
 async function loadOverlayVideo(customURL) {
-  console.log('Loading overlay video...', customURL || './vid.mp4');
+  console.log('Loading overlay video...', customURL || './vid2_1.mp4');
   
   // Check if we're on mobile
   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
@@ -132,7 +140,7 @@ async function loadOverlayVideo(customURL) {
     overlayVideo.preload = 'metadata'; // Less aggressive preload for mobile
     
     // Don't set crossOrigin for same-origin videos on mobile
-    const videoSrc = customURL || './vid.mp4';
+  const videoSrc = customURL || './vid2_1.mp4';
     
     console.log('Mobile: Video src set to:', videoSrc);
     
@@ -304,7 +312,7 @@ async function loadOverlayVideo(customURL) {
   overlayVideo.loop = true;
   overlayVideo.crossOrigin = 'anonymous';
   
-  const videoSrc = customURL || './vid.mp4';
+  const videoSrc = customURL || './vid2_1.mp4';
   overlayVideo.src = videoSrc;
   console.log('Video src set to:', videoSrc);
 
@@ -358,14 +366,14 @@ function updatePlaneTransform(){
     // pantalla más ancha → expandir Y
     plane.scale.y = screenAspect / videoAspect;
   }
+  // Apply framing zoom
+  plane.scale.x *= FRAMING.zoom;
+  plane.scale.y *= FRAMING.zoom;
   // Offset horizontal proporcional a exceso de ancho tras escalar
-  let offset = 0;
-  if (offsetXInput){
-    const val = parseFloat(offsetXInput.value || '0'); // rango -1..1
-    // ancho extra relativo en unidades clip: (scale.x -1)
-    offset = val * (plane.scale.x - 1);
-  }
-  plane.position.x = offset;
+  // Fixed horizontal shift = 40% of extra width after scaling (0.40)
+  const extra = (plane.scale.x - 1);
+  plane.position.x = 0.40 * extra;
+  plane.position.y = FRAMING.yOffset * plane.scale.y; // apply vertical framing (scaled for consistency)
 }
 
 function initThree() {
@@ -382,11 +390,11 @@ function initThree() {
   console.log('Creating 8th Wall chroma key material...');
   chromaMaterial = createChromaKeyMaterial({ 
     texture: videoTex,
-    keyColor: new THREE.Color('#43A34E'), // Specific green color from video
-    similarity: 0.5,   // Less aggressive to preserve other colors
-    smoothness: 0.2,   // Moderate smooth transition
-    spill: 0.3,        // Moderate spill removal
-    debugMode: false   // Start with chroma key active
+    keyColor: new THREE.Color('#00B140'), // New specific green color provided
+    similarity: 0.5,
+    smoothness: 0.2,
+    spill: 0.3,
+    debugMode: false
   });
   // Set flipY uniform according to the created texture. Three.js VideoTexture
   // defaults to flipY = true for some platforms; canvas textures we created
@@ -590,9 +598,7 @@ window.addEventListener('load', autoStart);
 // Escuchar cuando el video realmente tenga dimensiones para actualizar escala
 document.addEventListener('loadeddata', () => updatePlaneTransform(), true);
 
-if (offsetXInput){
-  offsetXInput.addEventListener('input', ()=> updatePlaneTransform());
-}
+// Removed offsetXInput listener (fixed position)
 
 // ---- Capture / Recording ----
 function setupCapture(){
