@@ -700,47 +700,55 @@ function beginVideoRecording(){
 }
 
 function beginCompositeRecording(){
-  // Manual composition to ensure webcam + overlay are visually combined
+  // Manual composition preserving aspect ratio (avoid stretching / squashing)
+  const MAX_W = 1280;
+  const MAX_H = 720; // target for portrait height cap
+  let srcW = canvas.width;
+  let srcH = canvas.height;
+  if (!srcW || !srcH) { srcW = window.innerWidth; srcH = window.innerHeight; }
+
+  // Mantener relación de aspecto y escalar hacia abajo si excede los máximos
+  let scale = 1;
+  if (srcW > MAX_W || srcH > MAX_H) {
+    scale = Math.min(MAX_W / srcW, MAX_H / srcH);
+  }
+  const recW = Math.round(srcW * scale);
+  const recH = Math.round(srcH * scale);
+
   const composed = document.createElement('canvas');
-  composed.width = Math.min(canvas.width, 1280); // Cap resolution for performance
-  composed.height = Math.min(canvas.height, 720);
-  const ctx = composed.getContext('2d');
-  const fps = 20; // Reasonable FPS for good quality
-  
+  composed.width = recW;
+  composed.height = recH;
+  const ctx = composed.getContext('2d', { alpha: false });
+  const fps = 24; // un poco más fluido manteniendo tamaño reducido
+
+  console.log('[Recording] viewport:', srcW+'x'+srcH, '-> recording:', recW+'x'+recH, 'scale', scale.toFixed(3));
+
   const draw = ()=> {
     if (!isRecording) return;
-    
-    // Clear and redraw composite frame
-    ctx.clearRect(0,0,composed.width, composed.height);
-    
-    // 1. Draw webcam background (with cover cropping)
+    ctx.clearRect(0,0,recW,recH);
+    // 1. Webcam (cover)
     if (webcamEl.videoWidth) {
-      drawWebcamCover(ctx, webcamEl, composed.width, composed.height);
+      drawWebcamCover(ctx, webcamEl, recW, recH);
     }
-    
-    // 2. Force fresh Three.js render to ensure latest overlay frame
-    if (renderer && scene && camera) {
-      renderer.render(scene, camera);
-    }
-    
-    // 3. Draw WebGL overlay (chroma video + tangram) on top
-    try { 
-      ctx.drawImage(canvas, 0, 0, composed.width, composed.height); 
-    } catch(e) { 
+    // 2. Render overlay actualizado
+    if (renderer && scene && camera) renderer.render(scene, camera);
+    // 3. Dibujar overlay escalado sin deformar (fuente ya tiene el mismo aspect que src)
+    try {
+      ctx.drawImage(canvas, 0, 0, recW, recH);
+    } catch(e){
       console.warn('Canvas draw failed:', e);
     }
-    
     recordRAF = requestAnimationFrame(draw);
   };
 
   const stream = composed.captureStream(fps);
-  recorder = new MediaRecorder(stream, { 
+  recorder = new MediaRecorder(stream, {
     mimeType: pickSupportedMime(),
-    videoBitsPerSecond: 3000000 // Higher bitrate for MP4 quality
+    videoBitsPerSecond: 3500000
   });
   recorder.ondataavailable = e => { if (e.data && e.data.size > 0) recordedChunks.push(e.data); };
   recorder.onstop = onRecordingStop;
-  recorder.start(500); // More frequent data chunks for MP4
+  recorder.start(500);
   draw();
 }
 
