@@ -21,7 +21,9 @@ export function createChromaKeyMaterial({
     similarity: { value: similarity },
     smoothness: { value: smoothness },
     spill: { value: spill },
-    debugMode: { value: debugMode ? 1.0 : 0.0 }
+    debugMode: { value: debugMode ? 1.0 : 0.0 },
+    // flipY: 1.0 means flip vertically (use 1.0 when texture.flipY === false)
+    flipY: { value: 0.0 }
   };
   
   const material = new THREE.ShaderMaterial({
@@ -32,10 +34,16 @@ export function createChromaKeyMaterial({
     uniforms,
     vertexShader: /* glsl */`
       varying vec2 vUv;
+      uniform float flipY;
       void main(){
-        // Check if we need to flip Y for iPhone (detect via user agent)
-        // On iPhone, video texture is often inverted
-        vUv = vec2(uv.x, 1.0 - uv.y);
+        // Conditionally flip Y based on uniform. This keeps desktop correct while
+        // allowing iOS/canvas-based textures (which set texture.flipY = false)
+        // to be flipped back into proper orientation.
+        if (flipY > 0.5) {
+          vUv = vec2(uv.x, 1.0 - uv.y);
+        } else {
+          vUv = uv;
+        }
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
       }
     `,

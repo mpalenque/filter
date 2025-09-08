@@ -26,6 +26,15 @@ const previewDownload = document.getElementById('preview-download');
 let renderer, scene, camera, plane, chromaMaterial, videoTex, overlayVideo;
 let recorder, recordedChunks = [], pressTimer, isRecording = false, recordStartTs = 0, progressInterval, recordRAF = 0;
 let currentFile = null; // For preview
+let pendingVideoReadyCallbacks = [];
+
+function onVideoReady(cb){
+  if (overlayVideo && overlayVideo.videoWidth > 0) {
+    cb();
+  } else {
+    pendingVideoReadyCallbacks.push(cb);
+  }
+}
 
 async function initWebcam() {
   try {
@@ -333,6 +342,32 @@ async function loadOverlayVideo(customURL) {
   videoTex.needsUpdate = true;
 }
 
+function updatePlaneTransform(){
+  if (!plane || !overlayVideo || !overlayVideo.videoWidth) return;
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  const videoAspect = overlayVideo.videoWidth / overlayVideo.videoHeight;
+  const screenAspect = w / h;
+  // Reset scale
+  plane.scale.set(1,1,1);
+  // Emular object-fit: cover
+  if (videoAspect > screenAspect){
+    // video más ancho → expandir X
+    plane.scale.x = videoAspect / screenAspect;
+  } else if (videoAspect < screenAspect){
+    // pantalla más ancha → expandir Y
+    plane.scale.y = screenAspect / videoAspect;
+  }
+  // Offset horizontal proporcional a exceso de ancho tras escalar
+  let offset = 0;
+  if (offsetXInput){
+    const val = parseFloat(offsetXInput.value || '0'); // rango -1..1
+    // ancho extra relativo en unidades clip: (scale.x -1)
+    offset = val * (plane.scale.x - 1);
+  }
+  plane.position.x = offset;
+}
+
 function initThree() {
   // Use WebGL1 to avoid texImage3D warnings on some platforms and keep UNPACK_* rules simple
   const gl = canvas.getContext('webgl', { alpha:true, antialias:false, preserveDrawingBuffer:true, premultipliedAlpha:false, powerPreference: 'high-performance' });
@@ -353,39 +388,26 @@ function initThree() {
     spill: 0.3,        // Moderate spill removal
     debugMode: false   // Start with chroma key active
   });
+  // Set flipY uniform according to the created texture. Three.js VideoTexture
+  // defaults to flipY = true for some platforms; canvas textures we created
+  // for iOS set flipY = false earlier. Use that to decide whether to flip UVs.
+  try {
+    const texFlip = (videoTex && typeof videoTex.flipY === 'boolean') ? videoTex.flipY : true;
+    // Our shader expects flipY uniform: 1.0 => flip, 0.0 => don't flip
+    chromaMaterial.uniforms.flipY.value = texFlip ? 0.0 : 1.0;
+    console.log('Chroma material flipY uniform set to', chromaMaterial.uniforms.flipY.value, '(texture.flipY=', texFlip, ')');
+  } catch (e) {
+    console.warn('Could not set flipY uniform on chroma material', e);
+  }
   
   console.log('8th Wall chroma material created with texture:', videoTex);
   console.log('Using more aggressive parameters for better green removal');
   
-  // Calculate proper aspect ratio for video plane
-  let planeWidth = 4;  // Double the size (was 2)
-  let planeHeight = 4; // Double the size (was 2)
-  
-  // Check if we have video dimensions and adjust for mobile devices
-  if (overlayVideo && overlayVideo.videoWidth && overlayVideo.videoHeight) {
-    const videoAspect = overlayVideo.videoWidth / overlayVideo.videoHeight;
-    const screenAspect = window.innerWidth / window.innerHeight;
-    
-    console.log('Video aspect:', videoAspect, 'Screen aspect:', screenAspect);
-    
-    // Adjust plane dimensions to maintain video aspect ratio (doubled size)
-    if (videoAspect > screenAspect) {
-      // Video is wider than screen
-      planeHeight = planeWidth / videoAspect;
-    } else {
-      // Video is taller than screen or same aspect
-      planeWidth = planeHeight * videoAspect;
-    }
-    
-    console.log('Adjusted plane dimensions (2x size):', planeWidth, 'x', planeHeight);
-  }
-  
-  const geo = new THREE.PlaneGeometry(planeWidth, planeHeight);
+  // Plano base 2x2 que llena el viewport ortográfico - escalamos luego
+  const geo = new THREE.PlaneGeometry(2, 2);
   plane = new THREE.Mesh(geo, chromaMaterial);
   scene.add(plane);
-  // Move 30% left (plane spans -1..1 in orthographic; 30% of width = 0.6 * 0.5? Simpler: shift -0.3 * 2 = -0.6 of normalized width?).
-  // Since plane width is 2 in clip space mapping, translating by -0.6 moves 30% of full width left.
-  plane.position.x = -0.6;
+  updatePlaneTransform();
   
   console.log('Plane created and positioned at x:', plane.position.x);
 
@@ -409,31 +431,8 @@ function animate(){
 }
 
 function resize(){
-  const w = window.innerWidth;
-  const h = window.innerHeight;
-  renderer.setSize(w, h);
-  
-  // Also update plane aspect ratio if video and plane exist
-  if (plane && overlayVideo && overlayVideo.videoWidth && overlayVideo.videoHeight) {
-    const videoAspect = overlayVideo.videoWidth / overlayVideo.videoHeight;
-    const screenAspect = w / h;
-    
-    let planeWidth = 4;  // Double size (was 2)
-    let planeHeight = 4; // Double size (was 2)
-    
-    // Maintain video aspect ratio (doubled size)
-    if (videoAspect > screenAspect) {
-      planeHeight = planeWidth / videoAspect;
-    } else {
-      planeWidth = planeHeight * videoAspect;
-    }
-    
-    // Update plane geometry
-    plane.geometry.dispose();
-    plane.geometry = new THREE.PlaneGeometry(planeWidth, planeHeight);
-    
-    console.log('Plane resized to (2x size):', planeWidth, 'x', planeHeight, 'for aspect:', videoAspect);
-  }
+  renderer.setSize(window.innerWidth, window.innerHeight, false);
+  updatePlaneTransform();
 }
 window.addEventListener('resize', () => resize());
 
@@ -558,6 +557,7 @@ if (tapOverlay) {
       
       console.log('Manual initialization: setting up Three.js...');
       initThree();
+  updatePlaneTransform();
       wireUI();
       if (loadingOverlay) {
         loadingOverlay.style.display = 'none';
@@ -586,6 +586,13 @@ if (tapOverlay) {
 }
 
 window.addEventListener('load', autoStart);
+
+// Escuchar cuando el video realmente tenga dimensiones para actualizar escala
+document.addEventListener('loadeddata', () => updatePlaneTransform(), true);
+
+if (offsetXInput){
+  offsetXInput.addEventListener('input', ()=> updatePlaneTransform());
+}
 
 // ---- Capture / Recording ----
 function setupCapture(){
